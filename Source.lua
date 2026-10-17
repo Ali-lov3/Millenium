@@ -587,11 +587,22 @@
                     Parent = library[ "root" ];
                     Size = cfg.size;
                     Name = "\0";
-                    Position = dim2(0.5, -cfg.size.X.Offset / 2, 0.5, -cfg.size.Y.Offset / 2 - (is_mobile and 0 or 80));
+                    Position = dim2(0, 0, 0, 0);
                     BorderColor3 = rgb(0, 0, 0);
                     BorderSizePixel = 0;
                     BackgroundColor3 = rgb(14, 14, 16)
-                }); items[ "main" ].Position = dim2(0, items[ "main" ].AbsolutePosition.X / cfg.scale, 0, items[ "main" ].AbsolutePosition.Y / cfg.scale)
+                });
+
+                do
+                    local vp = camera.ViewportSize
+                    local spawn_x = (vp.X / cfg.scale - cfg.size.X.Offset) / 2
+                    local spawn_y = (vp.Y / cfg.scale - cfg.size.Y.Offset) / 2 - (is_mobile and 20 or 80)
+
+                    items[ "main" ].Position = dim2(
+                        0, max(spawn_x, 0),
+                        0, max(spawn_y, 8)
+                    )
+                end
 
                 library:create( "UICorner" , {
                     Parent = items[ "main" ];
