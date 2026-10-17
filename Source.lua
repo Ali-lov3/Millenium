@@ -587,7 +587,7 @@
                     Parent = library[ "root" ];
                     Size = cfg.size;
                     Name = "\0";
-                    Position = dim2(0.5, -cfg.size.X.Offset / 2, 0.5, -cfg.size.Y.Offset / 2);
+                    Position = dim2(0.5, -cfg.size.X.Offset / 2, 0.5, -cfg.size.Y.Offset / 2 - 80);
                     BorderColor3 = rgb(0, 0, 0);
                     BorderSizePixel = 0;
                     BackgroundColor3 = rgb(14, 14, 16)
@@ -2241,9 +2241,15 @@
                         ZIndex = 10;
                     });
 
-                    items[ "outline" ] = library:create( "Frame" , {
+                    items[ "outline" ] = library:create( "ScrollingFrame" , {
                         Parent = items[ "dropdown_holder" ];
                         Size = dim2(1, 0, 1, 0);
+                        Active = true;
+                        CanvasSize = dim2(0, 0, 0, 0);
+                        AutomaticCanvasSize = Enum.AutomaticSize.Y;
+                        ScrollBarThickness = 2;
+                        ScrollBarImageColor3 = rgb(72, 72, 73);
+                        ScrollingDirection = Enum.ScrollingDirection.Y;
                         ClipsDescendants = true;
                         BorderColor3 = rgb(0, 0, 0);
                         BorderSizePixel = 0;
@@ -2300,7 +2306,7 @@
 
             function cfg.set_visible(bool)
                 local sc = library.scale or 1
-                local a = bool and cfg.y_size or 0
+                local a = bool and math.min(cfg.y_size, 150) or 0
 
                 library:tween(items[ "dropdown_holder" ], {Size = dim_offset(items[ "dropdown" ].AbsoluteSize.X / sc, a)})
 
