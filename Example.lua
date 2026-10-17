@@ -1,6 +1,6 @@
 local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/Ali-lov3/Millenium/refs/heads/main/Source.lua"))()
 
-local window = library:window({name = "nebula", suffix = "tech", gameInfo = "Milenium for Counter-Strike: Global Offensive"})
+local window = library:window({name = "nebula", suffix = "tech", gameInfo = "Milenium for Counter-Strike: Global Offensive", AccentColor = Color3.fromRGB(155, 150, 219)})
 
 window:seperator({name = "General"})
 local enemies, teammates, self_section = window:tab({name = "Example", icon = "eye", tabs = {"Enemies", "Teammates", "Self"}})

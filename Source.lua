@@ -572,6 +572,12 @@
         end
 
         function library:window(properties)
+            local accent_color = properties.AccentColor or properties.accentColor or properties.accent_color or properties.Accent or properties.accent
+
+            if typeof(accent_color) == "Color3" then
+                themes.preset.accent = accent_color
+            end
+
             local forced_scale = properties.scale or properties.Scale
             local default_size = is_mobile and dim2(0, 640, 0, 418) or dim2(0, 700, 0, 565)
 
