@@ -497,6 +497,10 @@
         end
 
         function library:unload_menu()
+            if library[ "esp_unload" ] then
+                library.esp_unload()
+            end
+
             if library[ "items" ] then
                 library[ "items" ]:Destroy()
             end
@@ -3739,7 +3743,7 @@
         function library:esp_manager(options)
             options = options or {}
 
-            local fit = 0.6
+            local fit = 0.5
 
             local cfg = {
                 name = options.name or options.Name or "Esp";
@@ -3747,51 +3751,54 @@
                 rotate = true;
                 speed = 40;
                 rotation = 0;
-                distance = 10;
-                health_fraction = 1;
-                health_value = 100;
-                weapon_name = "Unarmed";
-                parts = {};
                 ready = false;
+                objects = {};
                 items = {};
 
+                info = {
+                    health = 100;
+                    max_health = 100;
+                    display_name = lp.DisplayName;
+                    user_name = lp.Name;
+                    weapon = "Weapon";
+                    backpack = {"Tool 1", "Tool 2"};
+                    distance = 25;
+                };
+
                 values = {
-                    enabled = true;
-                    team_check = false;
-                    max_distance = 1000;
+                    Enabled = true;
 
-                    box = true;
-                    box_color = rgb(155, 150, 219);
-                    box_thickness = 1;
-                    box_filled = false;
-                    box_fill_color = rgb(155, 150, 219);
-                    box_fill_alpha = 0.85;
+                    Box = true;
+                    BoxGradient = true;
 
-                    name = true;
-                    name_color = rgb(255, 255, 255);
-                    name_display = true;
+                    Glow = true;
+                    GlowGradient = true;
+                    GlowColor = rgb(255, 80, 180);
+                    GlowTransparency = 0.4;
 
-                    health = true;
-                    health_color = rgb(87, 214, 111);
-                    health_text = false;
+                    HealthBar = true;
+                    HealthBarGradient = false;
 
-                    distance = false;
-                    distance_color = rgb(255, 255, 255);
-                    distance_unit = "m";
+                    HealthText = true;
+                    HealthTextGradient = false;
 
-                    weapon = false;
-                    weapon_color = rgb(255, 255, 255);
-                    weapon_upper = false;
+                    Name = true;
+                    DisplayName = true;
+                    NameGradient = true;
 
-                    tracer = false;
-                    tracer_color = rgb(155, 150, 219);
-                    tracer_origin = "Bottom";
-                    tracer_thickness = 1;
+                    Avatar = true;
 
-                    chams = false;
-                    chams_color = rgb(155, 150, 219);
-                    chams_transparency = 0.4;
-                    chams_material = "Neon";
+                    Weapon = true;
+                    WeaponGradient = true;
+
+                    Backpack = true;
+                    BackpackGradient = true;
+
+                    Distance = true;
+                    DistanceGradient = true;
+
+                    GradientColor1 = rgb(255, 255, 255);
+                    GradientColor2 = rgb(255, 80, 180);
                 };
             }
 
@@ -3805,6 +3812,381 @@
                 end
             end
 
+            local function create_text(parent, text_name, font, text_size, size, position, alignment)
+                local text = library:create( "TextLabel" , {
+                    Name = text_name;
+                    Parent = parent;
+                    BackgroundTransparency = 1;
+                    Size = size;
+                    Font = font;
+                    TextSize = text_size;
+                    TextColor3 = rgb(255, 255, 255);
+                    TextXAlignment = alignment or Enum.TextXAlignment.Center
+                });
+
+                if position then
+                    text.Position = position
+                end
+
+                local text_gradient = library:create( "UIGradient" , {
+                    Name = text_name .. "Gradient";
+                    Parent = text
+                });
+
+                library:create( "UIStroke" , {
+                    Thickness = 1;
+                    Color = rgb(0, 0, 0);
+                    Parent = text
+                });
+
+                return text, text_gradient
+            end
+
+            local function create_box(parent, user_id, glow_z)
+                local obj = {}
+
+                obj.Box = library:create( "Frame" , {
+                    Parent = parent;
+                    BackgroundColor3 = rgb(255, 255, 255);
+                    BackgroundTransparency = 1;
+                    BorderSizePixel = 0;
+                    Visible = false
+                });
+
+                obj.Glow = library:create( "ImageLabel" , {
+                    Name = "Glow";
+                    Parent = obj.Box;
+                    BackgroundTransparency = 1;
+                    Position = dim2(0, -15, 0, -15);
+                    Size = dim2(1, 30, 1, 30);
+                    Image = "rbxassetid://5028857084";
+                    ScaleType = Enum.ScaleType.Slice;
+                    SliceCenter = rect(24, 24, 276, 276);
+                    ImageColor3 = rgb(255, 255, 255);
+                    ImageTransparency = values.GlowTransparency;
+                    ZIndex = glow_z
+                });
+
+                obj.GlowGradient = library:create( "UIGradient" , {
+                    Name = "GlowGradient";
+                    Parent = obj.Glow
+                });
+
+                obj.Stroke = library:create( "UIStroke" , {
+                    Name = "BoxStroke";
+                    Color = rgb(255, 255, 255);
+                    Thickness = 1;
+                    ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
+                    Parent = obj.Box
+                });
+
+                obj.StrokeGradient = library:create( "UIGradient" , {
+                    Name = "StrokeGradient";
+                    Parent = obj.Stroke
+                });
+
+                obj.Fill = library:create( "Frame" , {
+                    Name = "Fill";
+                    Parent = obj.Box;
+                    BackgroundColor3 = rgb(255, 255, 255);
+                    BackgroundTransparency = 0.65;
+                    BorderSizePixel = 0;
+                    Size = dim2(1, 0, 1, 0);
+                    Position = dim2(0, 0, 0, 0)
+                });
+
+                obj.FillGradient = library:create( "UIGradient" , {
+                    Name = "FillGradient";
+                    Rotation = 90;
+                    Parent = obj.Fill
+                });
+
+                obj.HealthBarBg = library:create( "Frame" , {
+                    Name = "HealthBarBg";
+                    Parent = obj.Box;
+                    BackgroundColor3 = rgb(0, 0, 0);
+                    BackgroundTransparency = 0.4;
+                    BorderSizePixel = 0;
+                    Size = dim2(0, 2, 1, 0);
+                    Position = dim2(0, -5, 0, 0)
+                });
+
+                obj.HealthBar = library:create( "Frame" , {
+                    Name = "HealthBar";
+                    Parent = obj.HealthBarBg;
+                    BackgroundColor3 = rgb(255, 255, 255);
+                    BorderSizePixel = 0;
+                    Size = dim2(1, 0, 1, 0);
+                    Position = dim2(0, 0, 0, 0)
+                });
+
+                obj.HealthBarGradient = library:create( "UIGradient" , {
+                    Name = "HealthBarGradient";
+                    Rotation = 90;
+                    Parent = obj.HealthBar
+                });
+
+                obj.HealthText, obj.HealthTextGradient = create_text(obj.Box, "HealthText", Enum.Font.SourceSansBold, 11, dim2(0, 40, 0, 12), dim2(0, -47, 0, -2), Enum.TextXAlignment.Right)
+                obj.NameText, obj.NameTextGradient = create_text(obj.Box, "NameText", Enum.Font.SourceSansBold, 12, dim2(1, 0, 0, 14), dim2(0, 0, 0, -16))
+
+                obj.AvatarImage = library:create( "ImageLabel" , {
+                    Name = "AvatarImage";
+                    Parent = obj.Box;
+                    BackgroundTransparency = 1;
+                    Size = dim2(0, 25, 0, 25);
+                    Position = dim2(0.5, -12.5, 0, -43);
+                    BorderSizePixel = 0
+                });
+
+                obj.WeaponText, obj.WeaponTextGradient = create_text(obj.Box, "WeaponText", Enum.Font.SourceSansBold, 11, dim2(1, 0, 0, 14))
+                obj.DistanceText, obj.DistanceTextGradient = create_text(obj.Box, "DistanceText", Enum.Font.SourceSansBold, 11, dim2(1, 0, 0, 14))
+                obj.BackpackText, obj.BackpackTextGradient = create_text(obj.Box, "BackpackText", Enum.Font.SourceSans, 10, dim2(1, 0, 0, 14))
+
+                task.spawn(function()
+                    local success, content, is_ready = pcall(function()
+                        return players:GetUserThumbnailAsync(user_id, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
+                    end)
+
+                    if success and is_ready then
+                        obj.AvatarImage.Image = content
+                    end
+                end)
+
+                return obj
+            end
+
+            local function apply(obj, info)
+                local color_sequence = rgbseq(values.GradientColor1, values.GradientColor2)
+
+                if values.Glow then
+                    obj.Glow.Visible = true
+                    obj.Glow.ImageTransparency = values.GlowTransparency
+                    obj.GlowGradient.Enabled = values.GlowGradient
+
+                    if values.GlowGradient then
+                        obj.GlowGradient.Color = color_sequence
+                        obj.Glow.ImageColor3 = rgb(255, 255, 255)
+                    else
+                        obj.Glow.ImageColor3 = values.GlowColor
+                    end
+                else
+                    obj.Glow.Visible = false
+                end
+
+                obj.Stroke.Enabled = values.Box
+                obj.StrokeGradient.Enabled = values.Box and values.BoxGradient
+
+                if values.BoxGradient then
+                    obj.StrokeGradient.Color = color_sequence
+                end
+
+                obj.Fill.Visible = values.Box
+                obj.FillGradient.Enabled = values.Box and values.BoxGradient
+
+                if values.BoxGradient then
+                    obj.FillGradient.Color = color_sequence
+                end
+
+                local health = clamp(info.health, 0, info.max_health)
+                local health_percent = health / info.max_health
+                local health_color = rgb(255, 0, 0):Lerp(rgb(0, 255, 0), health_percent)
+
+                if values.HealthBar then
+                    obj.HealthBarBg.Visible = true
+                    obj.HealthBar.Size = dim2(1, 0, health_percent, 0)
+                    obj.HealthBar.Position = dim2(0, 0, 1 - health_percent, 0)
+                    obj.HealthBarGradient.Enabled = values.HealthBarGradient
+
+                    if values.HealthBarGradient then
+                        obj.HealthBarGradient.Color = color_sequence
+                        obj.HealthBar.BackgroundColor3 = rgb(255, 255, 255)
+                    else
+                        obj.HealthBar.BackgroundColor3 = health_color
+                    end
+                else
+                    obj.HealthBarBg.Visible = false
+                end
+
+                if values.HealthText then
+                    obj.HealthText.Visible = true
+                    obj.HealthText.Text = floor(health) .. " HP"
+                    obj.HealthTextGradient.Enabled = values.HealthTextGradient
+
+                    if values.HealthTextGradient then
+                        obj.HealthTextGradient.Color = color_sequence
+                        obj.HealthText.TextColor3 = rgb(255, 255, 255)
+                    else
+                        obj.HealthText.TextColor3 = health_color
+                    end
+                else
+                    obj.HealthText.Visible = false
+                end
+
+                local name_visible = values.DisplayName or values.Name
+
+                if values.DisplayName and values.Name then
+                    obj.NameText.Visible = true
+                    obj.NameText.Text = info.display_name .. " (@" .. info.user_name .. ")"
+                elseif values.DisplayName then
+                    obj.NameText.Visible = true
+                    obj.NameText.Text = info.display_name
+                elseif values.Name then
+                    obj.NameText.Visible = true
+                    obj.NameText.Text = "@" .. info.user_name
+                else
+                    obj.NameText.Visible = false
+                end
+
+                obj.NameTextGradient.Enabled = values.NameGradient
+
+                if values.NameGradient then
+                    obj.NameTextGradient.Color = color_sequence
+                end
+
+                obj.NameText.TextColor3 = rgb(255, 255, 255)
+
+                if values.Avatar then
+                    obj.AvatarImage.Visible = true
+
+                    if name_visible then
+                        obj.AvatarImage.Position = dim2(0.5, -12.5, 0, -43)
+                    else
+                        obj.AvatarImage.Position = dim2(0.5, -12.5, 0, -27)
+                    end
+                else
+                    obj.AvatarImage.Visible = false
+                end
+
+                local bottom_offset = 2
+
+                if values.Weapon and info.weapon then
+                    obj.WeaponText.Visible = true
+                    obj.WeaponText.Text = info.weapon
+                    obj.WeaponText.Position = dim2(0, 0, 1, bottom_offset)
+                    obj.WeaponTextGradient.Enabled = values.WeaponGradient
+
+                    if values.WeaponGradient then
+                        obj.WeaponTextGradient.Color = color_sequence
+                    end
+
+                    obj.WeaponText.TextColor3 = rgb(255, 255, 255)
+                    bottom_offset = bottom_offset + 14
+                else
+                    obj.WeaponText.Visible = false
+                end
+
+                if values.Distance and info.distance then
+                    obj.DistanceText.Visible = true
+                    obj.DistanceText.Text = info.distance .. " Studs"
+                    obj.DistanceText.Position = dim2(0, 0, 1, bottom_offset)
+                    obj.DistanceTextGradient.Enabled = values.DistanceGradient
+
+                    if values.DistanceGradient then
+                        obj.DistanceTextGradient.Color = color_sequence
+                        obj.DistanceText.TextColor3 = rgb(255, 255, 255)
+                    else
+                        obj.DistanceText.TextColor3 = rgb(200, 200, 200)
+                    end
+
+                    bottom_offset = bottom_offset + 14
+                else
+                    obj.DistanceText.Visible = false
+                end
+
+                if values.Backpack and #info.backpack > 0 then
+                    obj.BackpackText.Visible = true
+                    obj.BackpackText.Text = "[" .. concat(info.backpack, ", ") .. "]"
+                    obj.BackpackText.Position = dim2(0, 0, 1, bottom_offset)
+                    obj.BackpackTextGradient.Enabled = values.BackpackGradient
+
+                    if values.BackpackGradient then
+                        obj.BackpackTextGradient.Color = color_sequence
+                        obj.BackpackText.TextColor3 = rgb(255, 255, 255)
+                    else
+                        obj.BackpackText.TextColor3 = rgb(180, 180, 180)
+                    end
+                else
+                    obj.BackpackText.Visible = false
+                end
+
+                obj.Box.Visible = values.Enabled and (values.Box or values.Glow or values.HealthBar or values.HealthText or values.Name or values.DisplayName or values.Avatar or values.Weapon or values.Distance or values.Backpack)
+            end
+
+            local function update_player(obj)
+                local box = obj.Box
+                local player = obj.Player
+                local character = player.Character
+                local current_camera = ws.CurrentCamera
+
+                if not values.Enabled or not character or not current_camera then
+                    box.Visible = false
+                    return
+                end
+
+                local hrp = character:FindFirstChild("HumanoidRootPart")
+                local humanoid = character:FindFirstChildOfClass("Humanoid")
+
+                if not hrp or not humanoid or humanoid.Health <= 0 then
+                    box.Visible = false
+                    return
+                end
+
+                local hrp_position, on_screen = current_camera:WorldToViewportPoint(hrp.Position)
+
+                if not on_screen then
+                    box.Visible = false
+                    return
+                end
+
+                local head = character:FindFirstChild("Head")
+                local top_position = head and head.Position + vec3(0, 0.5, 0) or (hrp.Position + vec3(0, 3, 0))
+                local bottom_position = hrp.Position - vec3(0, 3.5, 0)
+
+                local top_screen = current_camera:WorldToViewportPoint(top_position)
+                local bottom_screen = current_camera:WorldToViewportPoint(bottom_position)
+
+                local height = abs(top_screen.Y - bottom_screen.Y)
+                local width = height * 0.65
+
+                box.Position = dim_offset(hrp_position.X - (width / 2), top_screen.Y)
+                box.Size = dim_offset(width, height)
+
+                local info = {
+                    health = humanoid.Health;
+                    max_health = max(humanoid.MaxHealth, 1);
+                    display_name = player.DisplayName;
+                    user_name = player.Name;
+                    backpack = {};
+                }
+
+                if values.Weapon then
+                    local tool = character:FindFirstChildOfClass("Tool")
+                    info.weapon = tool and tool.Name or nil
+                end
+
+                if values.Distance then
+                    local my_character = lp.Character
+                    local my_hrp = my_character and my_character:FindFirstChild("HumanoidRootPart")
+                    local origin = my_hrp and my_hrp.Position or current_camera.CFrame.Position
+
+                    info.distance = floor((hrp.Position - origin).Magnitude)
+                end
+
+                if values.Backpack then
+                    local backpack = player:FindFirstChild("Backpack")
+
+                    if backpack then
+                        for _, item in backpack:GetChildren() do
+                            if item:IsA("Tool") then
+                                insert(info.backpack, item.Name)
+                            end
+                        end
+                    end
+                end
+
+                apply(obj, info)
+            end
+
             function cfg.layout()
                 if not cfg.ready then
                     return
@@ -3816,19 +4198,9 @@
                     return
                 end
 
-                local aspect = size.X / size.Y
-                local width = clamp(fit * 0.55 / aspect, 0.1, 0.9)
-                local half_height = fit / 2
-                local half_width = width / 2
+                local height = size.Y * fit / (library.scale or 1)
 
-                items[ "box" ].Size = dim2(width, 0, fit, 0)
-                items[ "name" ].Position = dim2(0.5, 0, 0.5 - half_height, -3)
-                items[ "health_bar" ].Position = dim2(0.5 - half_width, -6, 0.5, 0)
-                items[ "health_text" ].Position = dim2(0.5 - half_width, -12, 0.5 + half_height - fit * cfg.health_fraction, 0)
-                items[ "distance" ].Position = dim2(0.5, 0, 0.5 + half_height, 3)
-                items[ "weapon" ].Position = dim2(0.5, 0, 0.5 + half_height, values.distance and 15 or 3)
-                items[ "tracer" ].Size = dim2(0, values.tracer_thickness, 0.5 - half_height, 0)
-                items[ "tracer" ].Position = values.tracer_origin == "Top" and dim2(0.5, 0, 0, 0) or dim2(0.5, 0, 0.5 + half_height, 0)
+                items[ "preview" ].Box.Size = dim_offset(height * 0.65, height)
             end
 
             function cfg.refresh()
@@ -3836,43 +4208,7 @@
                     return
                 end
 
-                local on = values.enabled
-
-                items[ "box" ].Visible = on and values.box
-                items[ "box" ].BackgroundColor3 = values.box_fill_color
-                items[ "box" ].BackgroundTransparency = values.box_filled and values.box_fill_alpha or 1
-                items[ "box_stroke" ].Color = values.box_color
-                items[ "box_stroke" ].Thickness = values.box_thickness
-
-                items[ "name" ].Visible = on and values.name
-                items[ "name" ].Text = values.name_display and lp.DisplayName or lp.Name
-                items[ "name" ].TextColor3 = values.name_color
-
-                items[ "health_bar" ].Visible = on and values.health
-                items[ "health_fill" ].BackgroundColor3 = values.health_color
-                items[ "health_fill" ].Size = dim2(1, -2, cfg.health_fraction, -2)
-                items[ "health_text" ].Visible = on and values.health and values.health_text
-                items[ "health_text" ].Text = tostring(cfg.health_value)
-
-                items[ "distance" ].Visible = on and values.distance
-                items[ "distance" ].Text = values.distance_unit == "studs" and "25 studs" or "25m"
-                items[ "distance" ].TextColor3 = values.distance_color
-
-                items[ "weapon" ].Visible = on and values.weapon
-                items[ "weapon" ].Text = values.weapon_upper and string.upper(cfg.weapon_name) or cfg.weapon_name
-                items[ "weapon" ].TextColor3 = values.weapon_color
-
-                items[ "tracer" ].Visible = on and values.tracer
-                items[ "tracer" ].BackgroundColor3 = values.tracer_color
-
-                local active = on and values.chams
-
-                for _, data in cfg.parts do
-                    data.part.Color = active and values.chams_color or data.color
-                    data.part.Material = active and (Enum.Material[values.chams_material] or Enum.Material.Neon) or data.material
-                    data.part.Transparency = active and values.chams_transparency or data.transparency
-                end
-
+                apply(items[ "preview" ], cfg.info)
                 cfg.layout()
             end
 
@@ -3910,8 +4246,6 @@
                     cfg.model:Destroy()
                     cfg.model = nil
                 end
-
-                cfg.parts = {}
 
                 local source = lp.Character
                 local model
@@ -3953,22 +4287,24 @@
                     current_health = max_health
                 end
 
-                cfg.health_fraction = clamp(current_health / max_health, 0, 1)
-                cfg.health_value = floor(current_health)
-
                 local tool = source and source:FindFirstChildOfClass("Tool")
-                cfg.weapon_name = tool and tool.Name or "Unarmed"
+                local backpack = lp:FindFirstChild("Backpack")
+                local tools = {}
 
-                for _, object in model:GetDescendants() do
-                    if object:IsA("BasePart") and object.Transparency < 1 then
-                        insert(cfg.parts, {
-                            part = object;
-                            color = object.Color;
-                            material = object.Material;
-                            transparency = object.Transparency;
-                        })
+                if backpack then
+                    for _, item in backpack:GetChildren() do
+                        if item:IsA("Tool") then
+                            insert(tools, item.Name)
+                        end
                     end
                 end
+
+                cfg.info.health = current_health
+                cfg.info.max_health = max_health
+                cfg.info.display_name = lp.DisplayName
+                cfg.info.user_name = lp.Name
+                cfg.info.weapon = tool and tool.Name or "Weapon"
+                cfg.info.backpack = #tools > 0 and tools or {"Tool 1", "Tool 2"}
 
                 model:PivotTo(cfr(0, 0, 0))
 
@@ -3986,18 +4322,29 @@
                 cfg.refresh()
             end
 
+            function cfg.unload()
+                run:UnbindFromRenderStep("ESPUpdate")
+
+                if cfg.gui then
+                    cfg.gui:Destroy()
+                    cfg.gui = nil
+                end
+
+                cfg.objects = {}
+            end
+
             local page = self:tab({name = cfg.name, tabs = {cfg.page}})
 
             local left = page:column({})
-            local general = left:section({name = "General", size = 0.4, default = true})
-            local element_section = left:section({name = "Elements", size = 0.6, default = true})
+            local general = left:section({name = "General", size = 0.35, default = true})
+            local element_section = left:section({name = "Elements", size = 0.65, default = true})
 
             local right = page:column({})
             local preview = right:section({name = "Preview", size = 1, default = true})
 
-            general:toggle({name = "Enable ESP", flag = "esp_enabled", default = true, enabled = true, seperator = true, callback = bind("enabled")})
-            general:toggle({name = "Team Check", flag = "esp_team_check", seperator = true, callback = bind("team_check")})
-            general:slider({name = "Max Distance", flag = "esp_max_distance", min = 100, max = 5000, default = 1000, interval = 50, suffix = "m", callback = bind("max_distance")})
+            general:toggle({name = "Enable ESP", flag = "esp_enabled", default = true, enabled = true, seperator = true, callback = bind("Enabled")})
+            general:colorpicker({name = "Gradient Color 1", flag = "esp_gradient_color_1", color = values.GradientColor1, seperator = true, callback = bind("GradientColor1")})
+            general:colorpicker({name = "Gradient Color 2", flag = "esp_gradient_color_2", color = values.GradientColor2, seperator = true, callback = bind("GradientColor2")})
             general:toggle({name = "Rotate Preview", flag = "esp_rotate", default = true, enabled = true, seperator = true, callback = function(bool)
                 cfg.rotate = bool
             end})
@@ -4008,54 +4355,48 @@
                 cfg.load_model()
             end})
 
-            local function element(title, key, accent)
+            local function element(title, key, gradient_key)
                 local toggle = element_section:toggle({
                     name = title;
-                    flag = "esp_" .. key;
+                    flag = "esp_" .. string.lower(key);
                     default = values[key];
                     enabled = values[key];
                     seperator = true;
                     callback = bind(key);
                 })
 
-                toggle:colorpicker({
-                    name = title .. " Color";
-                    flag = "esp_" .. key .. "_color";
-                    color = accent;
-                    callback = bind(key .. "_color");
+                if not gradient_key then
+                    return toggle
+                end
+
+                local settings = toggle:settings({})
+
+                settings:toggle({
+                    name = "Gradient";
+                    flag = "esp_" .. string.lower(gradient_key);
+                    default = values[gradient_key];
+                    enabled = values[gradient_key];
+                    seperator = true;
+                    callback = bind(gradient_key);
                 })
 
-                return toggle:settings({})
+                return settings
             end
 
-            local box = element("Box", "box", values.box_color)
-            box:slider({name = "Thickness", flag = "esp_box_thickness", min = 1, max = 4, default = 1, interval = 1, callback = bind("box_thickness")})
-            box:toggle({name = "Filled", flag = "esp_box_filled", seperator = true, callback = bind("box_filled")})
-            box:colorpicker({name = "Fill Color", flag = "esp_box_fill_color", color = values.box_fill_color, alpha = 0.15, seperator = true, callback = function(value, alpha)
-                values.box_fill_color = value
-                values.box_fill_alpha = alpha
-                cfg.refresh()
-            end})
+            element("Box", "Box", "BoxGradient")
 
-            local name = element("Name", "name", values.name_color)
-            name:toggle({name = "Display Name", flag = "esp_name_display", default = true, enabled = true, seperator = true, callback = bind("name_display")})
+            local glow = element("Glow", "Glow", "GlowGradient")
+            glow:colorpicker({name = "Glow Color", flag = "esp_glowcolor", color = values.GlowColor, seperator = true, callback = bind("GlowColor")})
+            glow:slider({name = "Transparency", flag = "esp_glowtransparency", min = 0, max = 1, default = 0.4, interval = 0.05, callback = bind("GlowTransparency")})
 
-            local health = element("Health", "health", values.health_color)
-            health:toggle({name = "Health Number", flag = "esp_health_text", seperator = true, callback = bind("health_text")})
-
-            local distance = element("Distance", "distance", values.distance_color)
-            distance:dropdown({name = "Unit", flag = "esp_distance_unit", items = {"m", "studs"}, default = "m", seperator = true, callback = bind("distance_unit")})
-
-            local weapon = element("Weapon", "weapon", values.weapon_color)
-            weapon:toggle({name = "Uppercase", flag = "esp_weapon_upper", seperator = true, callback = bind("weapon_upper")})
-
-            local tracer = element("Tracer", "tracer", values.tracer_color)
-            tracer:dropdown({name = "Origin", flag = "esp_tracer_origin", items = {"Bottom", "Top"}, default = "Bottom", seperator = true, callback = bind("tracer_origin")})
-            tracer:slider({name = "Thickness", flag = "esp_tracer_thickness", min = 1, max = 4, default = 1, interval = 1, callback = bind("tracer_thickness")})
-
-            local chams = element("Chams", "chams", values.chams_color)
-            chams:slider({name = "Transparency", flag = "esp_chams_transparency", min = 0, max = 1, default = 0.4, interval = 0.05, callback = bind("chams_transparency")})
-            chams:dropdown({name = "Material", flag = "esp_chams_material", items = {"Neon", "ForceField", "SmoothPlastic", "Glass"}, default = "Neon", seperator = true, callback = bind("chams_material")})
+            element("Health Bar", "HealthBar", "HealthBarGradient")
+            element("Health Text", "HealthText", "HealthTextGradient")
+            element("Name", "Name", "NameGradient")
+            element("Display Name", "DisplayName")
+            element("Avatar", "Avatar")
+            element("Weapon", "Weapon", "WeaponGradient")
+            element("Backpack", "Backpack", "BackpackGradient")
+            element("Distance", "Distance", "DistanceGradient")
 
             preview.items[ "scrolling" ].Visible = false
 
@@ -4101,77 +4442,54 @@
                 Size = dim2(1, 0, 1, 0)
             });
 
-            items[ "box" ] = library:create( "Frame" , {
-                Parent = items[ "overlay" ];
-                Name = "\0";
-                AnchorPoint = vec2(0.5, 0.5);
-                Position = dim2(0.5, 0, 0.5, 0);
-                Size = dim2(0.3, 0, fit, 0);
-                BackgroundTransparency = 1;
-                BorderSizePixel = 0;
-                BackgroundColor3 = rgb(255, 255, 255)
+            items[ "preview" ] = create_box(items[ "overlay" ], lp.UserId, 1)
+            items[ "preview" ].Box.AnchorPoint = vec2(0.5, 0.5)
+            items[ "preview" ].Box.Position = dim2(0.5, 0, 0.5, 0)
+
+            cfg.gui = library:create( "ScreenGui" , {
+                Name = "BoxESP";
+                ResetOnSpawn = false;
+                ZIndexBehavior = Enum.ZIndexBehavior.Sibling;
+                IgnoreGuiInset = true;
+                Parent = gethui and gethui() or coregui
             });
 
-            items[ "box_stroke" ] = library:create( "UIStroke" , {
-                Parent = items[ "box" ];
-                Color = values.box_color;
-                Thickness = values.box_thickness;
-                ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-            });
+            library.esp_unload = cfg.unload
 
-            local function text_label(anchor, size)
-                return library:create( "TextLabel" , {
-                    Parent = items[ "overlay" ];
-                    Name = "\0";
-                    FontFace = fonts.small;
-                    TextSize = 12;
-                    Text = "";
-                    TextColor3 = rgb(255, 255, 255);
-                    TextStrokeTransparency = 0.4;
-                    BackgroundTransparency = 1;
-                    BorderSizePixel = 0;
-                    AnchorPoint = anchor;
-                    Size = size;
-                    Visible = false
-                })
+            local function add_player(player)
+                if player == lp or cfg.objects[player] then
+                    return
+                end
+
+                local obj = create_box(cfg.gui, player.UserId, 0)
+                obj.Player = player
+
+                cfg.objects[player] = obj
             end
 
-            items[ "name" ] = text_label(vec2(0.5, 1), dim2(1, 0, 0, 14))
-            items[ "distance" ] = text_label(vec2(0.5, 0), dim2(1, 0, 0, 12))
-            items[ "weapon" ] = text_label(vec2(0.5, 0), dim2(1, 0, 0, 12))
-            items[ "health_text" ] = text_label(vec2(1, 0.5), dim2(0, 30, 0, 12))
-            items[ "health_text" ].TextXAlignment = Enum.TextXAlignment.Right
+            local function remove_player(player)
+                local obj = cfg.objects[player]
 
-            items[ "health_bar" ] = library:create( "Frame" , {
-                Parent = items[ "overlay" ];
-                Name = "\0";
-                AnchorPoint = vec2(1, 0.5);
-                Size = dim2(0, 4, fit, 0);
-                BackgroundColor3 = rgb(0, 0, 0);
-                BackgroundTransparency = 0.3;
-                BorderSizePixel = 0;
-                Visible = false
-            });
+                if not obj then
+                    return
+                end
 
-            items[ "health_fill" ] = library:create( "Frame" , {
-                Parent = items[ "health_bar" ];
-                Name = "\0";
-                AnchorPoint = vec2(0, 1);
-                Position = dim2(0, 1, 1, -1);
-                Size = dim2(1, -2, 1, -2);
-                BorderSizePixel = 0;
-                BackgroundColor3 = values.health_color
-            });
+                obj.Box:Destroy()
+                cfg.objects[player] = nil
+            end
 
-            items[ "tracer" ] = library:create( "Frame" , {
-                Parent = items[ "overlay" ];
-                Name = "\0";
-                AnchorPoint = vec2(0.5, 0);
-                Size = dim2(0, 1, 0.2, 0);
-                BorderSizePixel = 0;
-                BackgroundColor3 = values.tracer_color;
-                Visible = false
-            });
+            for _, player in players:GetPlayers() do
+                add_player(player)
+            end
+
+            library:connection(players.PlayerAdded, add_player)
+            library:connection(players.PlayerRemoving, remove_player)
+
+            run:BindToRenderStep("ESPUpdate", Enum.RenderPriority.Camera.Value + 1, function()
+                for _, obj in cfg.objects do
+                    update_player(obj)
+                end
+            end)
 
             cfg.ready = true
 
