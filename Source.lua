@@ -116,6 +116,7 @@
 
     getgenv().library = {
         directory = "milenium",
+        config_path = "milenium/configs",
         folders = {
             "/fonts",
             "/configs",
@@ -445,7 +446,7 @@
 
             local list = {}
 
-            for idx, file in listfiles(library.directory .. "/configs") do
+            for idx, file in listfiles(library.config_path) do
                 local name = string.match(file, "([^/\\]+)$") or file
                 name = string.gsub(name, "%.cfg$", "")
                 list[#list + 1] = name
@@ -576,6 +577,24 @@
 
             if typeof(accent_color) == "Color3" then
                 themes.preset.accent = accent_color
+            end
+
+            local config_folder = properties.ConfigFolder or properties.configFolder or properties.config_folder
+
+            if type(config_folder) == "string" and config_folder ~= "" then
+                config_folder = string.gsub(config_folder, "[/\\]+$", "")
+
+                library.config_path = config_folder
+
+                local current_path = ""
+
+                for segment in string.gmatch(config_folder, "[^/\\]+") do
+                    current_path = current_path == "" and segment or (current_path .. "/" .. segment)
+
+                    if not isfolder(current_path) then
+                        makefolder(current_path)
+                    end
+                end
             end
 
             local forced_scale = properties.scale or properties.Scale
@@ -834,25 +853,6 @@
                     TextSize = 14;
                     BackgroundColor3 = rgb(255, 255, 255)
                 });
-
-                items[ "other_info" ] = library:create( "TextLabel" , {
-                    Parent = items[ "info" ];
-                    RichText = true;
-                    Name = "\0";
-                    TextColor3 = themes.preset.accent;
-                    BorderColor3 = rgb(0, 0, 0);
-                    Text = '<font color="rgb(72, 72, 73)">32 days left, </font>' .. cfg.name .. cfg.suffix;
-                    Size = dim2(1, 0, 0, 0);
-                    Position = dim2(0, -10, 0.5, -1);
-                    AnchorPoint = vec2(0, 0.5);
-                    BorderSizePixel = 0;
-                    BackgroundTransparency = 1;
-                    TextXAlignment = Enum.TextXAlignment.Right;
-                    AutomaticSize = Enum.AutomaticSize.XY;
-                    FontFace = fonts.font;
-                    TextSize = 14;
-                    BackgroundColor3 = rgb(255, 255, 255)
-                }); library:apply_theme(items[ "other_info" ], "accent", "TextColor3");
             end
 
             do
@@ -4727,29 +4727,29 @@
                     return
                 end
 
-                writefile(library.directory .. "/configs/" .. name .. ".cfg", library:get_config())
+                writefile(library.config_path .. "/" .. name .. ".cfg", library:get_config())
                 library:update_config_list()
                 notifications:create_notification({name = "Configs", info = "Saved config to:\n" .. name})
             end})
             section:button({name = "Load", callback = function()
                 local name = flags["config_name_list"]
 
-                if not name or not isfile(library.directory .. "/configs/" .. name .. ".cfg") then
+                if not name or not isfile(library.config_path .. "/" .. name .. ".cfg") then
                     return
                 end
 
-                library:load_config(readfile(library.directory .. "/configs/" .. name .. ".cfg"))
+                library:load_config(readfile(library.config_path .. "/" .. name .. ".cfg"))
                 library:update_config_list()
                 notifications:create_notification({name = "Configs", info = "Loaded config:\n" .. name})
             end})
             section:button({name = "Delete", callback = function()
                 local name = flags["config_name_list"]
 
-                if not name or not isfile(library.directory .. "/configs/" .. name .. ".cfg") then
+                if not name or not isfile(library.config_path .. "/" .. name .. ".cfg") then
                     return
                 end
 
-                delfile(library.directory .. "/configs/" .. name .. ".cfg")
+                delfile(library.config_path .. "/" .. name .. ".cfg")
                 library:update_config_list()
                 notifications:create_notification({name = "Configs", info = "Deleted config:\n" .. name})
             end})
