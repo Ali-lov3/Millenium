@@ -2229,6 +2229,16 @@
                         BackgroundColor3 = rgb(255, 255, 255)
                     });
 
+                    local function fit_width()
+                        local sc = library.scale or 1
+                        local avail = items[ "dropdown_object" ].AbsoluteSize.X / sc - items[ "name" ].TextBounds.X - 20
+                        items[ "dropdown" ].Size = dim2(0, clamp(avail, 60, cfg.width), 0, 16)
+                    end
+
+                    items[ "dropdown_object" ]:GetPropertyChangedSignal("AbsoluteSize"):Connect(fit_width)
+                    items[ "name" ]:GetPropertyChangedSignal("TextBounds"):Connect(fit_width)
+                    fit_width()
+
                     items[ "dropdown_holder" ] = library:create( "Frame" , {
                         BorderColor3 = rgb(0, 0, 0);
                         Parent = library[ "root" ];
