@@ -214,7 +214,7 @@
             local w = size.X.Offset
             local h = size.Y.Offset
 
-            return clamp(min((vp.X * 0.92) / w, (vp.Y * 0.88) / h, 1), 0.35, 1)
+            return clamp(min((vp.X * 0.92) / w, (vp.Y * 0.92) / h, 1), 0.35, 1)
         end
 
         function library:resizify(frame)
@@ -523,7 +523,7 @@
 
         function library:window(properties)
             local forced_scale = properties.scale or properties.Scale
-            local default_size = is_mobile and dim2(0, 620, 0, 420) or dim2(0, 700, 0, 565)
+            local default_size = is_mobile and dim2(0, 640, 0, 418) or dim2(0, 700, 0, 565)
 
             local cfg = {
                 suffix = properties.suffix or properties.Suffix or "tech";
@@ -587,7 +587,7 @@
                     Parent = library[ "root" ];
                     Size = cfg.size;
                     Name = "\0";
-                    Position = dim2(0.5, -cfg.size.X.Offset / 2, 0.5, -cfg.size.Y.Offset / 2 - 80);
+                    Position = dim2(0.5, -cfg.size.X.Offset / 2, 0.5, -cfg.size.Y.Offset / 2 - (is_mobile and 0 or 80));
                     BorderColor3 = rgb(0, 0, 0);
                     BorderSizePixel = 0;
                     BackgroundColor3 = rgb(14, 14, 16)
