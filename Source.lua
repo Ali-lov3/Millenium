@@ -3880,6 +3880,50 @@
             local items = cfg.items
             local values = cfg.values
 
+            local custom_settings = options.settings or options.Settings or options.values or options.Values or {}
+
+            local visibility = {}
+
+            for setting_key, setting_value in custom_settings do
+                if type(setting_value) == "table" then
+                    if setting_value.Visible ~= nil then
+                        visibility[setting_key] = setting_value.Visible
+                    end
+
+                    if setting_value.Value ~= nil then
+                        setting_value = setting_value.Value
+                    else
+                        setting_value = setting_value.Enabled
+                    end
+                end
+
+                if values[setting_key] ~= nil and setting_value ~= nil then
+                    values[setting_key] = setting_value
+                end
+            end
+
+            local function build(container, key, creator)
+                if visibility[key] ~= false then
+                    return creator()
+                end
+
+                local before = {}
+
+                for _, child in container:GetChildren() do
+                    before[child] = true
+                end
+
+                local result = creator()
+
+                for _, child in container:GetChildren() do
+                    if not before[child] and child:IsA("GuiObject") then
+                        child.Visible = false
+                    end
+                end
+
+                return result
+            end
+
             local function bind(key)
                 return function(value)
                     values[key] = value
@@ -4408,7 +4452,7 @@
                 cfg.objects = {}
             end
 
-            local page = self:tab({name = cfg.name, tabs = {cfg.page}})
+            local page = self:tab({name = cfg.name, icon = options.icon or options.Icon, tabs = {cfg.page}})
 
             local left = page:column({})
             local general = left:section({name = "General", size = 0.35, default = true})
@@ -4417,9 +4461,15 @@
             local right = page:column({})
             local preview = right:section({name = "Preview", size = 1, default = true})
 
-            general:toggle({name = "Enable ESP", flag = "esp_enabled", default = false, seperator = true, callback = bind("Enabled")})
-            general:colorpicker({name = "Gradient Color 1", flag = "esp_gradient_color_1", color = values.GradientColor1, seperator = true, callback = bind("GradientColor1")})
-            general:colorpicker({name = "Gradient Color 2", flag = "esp_gradient_color_2", color = values.GradientColor2, seperator = true, callback = bind("GradientColor2")})
+            build(general.items[ "elements" ], "Enabled", function()
+                return general:toggle({name = "Enable ESP", flag = "esp_enabled", default = values.Enabled, enabled = values.Enabled, seperator = true, callback = bind("Enabled")})
+            end)
+            build(general.items[ "elements" ], "GradientColor1", function()
+                return general:colorpicker({name = "Gradient Color 1", flag = "esp_gradient_color_1", color = values.GradientColor1, seperator = true, callback = bind("GradientColor1")})
+            end)
+            build(general.items[ "elements" ], "GradientColor2", function()
+                return general:colorpicker({name = "Gradient Color 2", flag = "esp_gradient_color_2", color = values.GradientColor2, seperator = true, callback = bind("GradientColor2")})
+            end)
             general:toggle({name = "Rotate Preview", flag = "esp_rotate", default = true, enabled = true, seperator = true, callback = function(bool)
                 cfg.rotate = bool
             end})
@@ -4431,14 +4481,16 @@
             end})
 
             local function element(title, key, gradient_key)
-                local toggle = element_section:toggle({
-                    name = title;
-                    flag = "esp_" .. string.lower(key);
-                    default = values[key];
-                    enabled = values[key];
-                    seperator = true;
-                    callback = bind(key);
-                })
+                local toggle = build(element_section.items[ "elements" ], key, function()
+                    return element_section:toggle({
+                        name = title;
+                        flag = "esp_" .. string.lower(key);
+                        default = values[key];
+                        enabled = values[key];
+                        seperator = true;
+                        callback = bind(key);
+                    })
+                end)
 
                 if not gradient_key then
                     return toggle
@@ -4446,14 +4498,16 @@
 
                 local settings = toggle:settings({})
 
-                settings:toggle({
-                    name = "Gradient";
-                    flag = "esp_" .. string.lower(gradient_key);
-                    default = values[gradient_key];
-                    enabled = values[gradient_key];
-                    seperator = true;
-                    callback = bind(gradient_key);
-                })
+                build(settings.items[ "elements" ], gradient_key, function()
+                    return settings:toggle({
+                        name = "Gradient";
+                        flag = "esp_" .. string.lower(gradient_key);
+                        default = values[gradient_key];
+                        enabled = values[gradient_key];
+                        seperator = true;
+                        callback = bind(gradient_key);
+                    })
+                end)
 
                 return settings
             end
@@ -4461,8 +4515,12 @@
             element("Box", "Box", "BoxGradient")
 
             local glow = element("Glow", "Glow", "GlowGradient")
-            glow:colorpicker({name = "Glow Color", flag = "esp_glowcolor", color = values.GlowColor, seperator = true, callback = bind("GlowColor")})
-            glow:slider({name = "Transparency", flag = "esp_glowtransparency", min = 0, max = 1, default = 0.4, interval = 0.05, callback = bind("GlowTransparency")})
+            build(glow.items[ "elements" ], "GlowColor", function()
+                return glow:colorpicker({name = "Glow Color", flag = "esp_glowcolor", color = values.GlowColor, seperator = true, callback = bind("GlowColor")})
+            end)
+            build(glow.items[ "elements" ], "GlowTransparency", function()
+                return glow:slider({name = "Transparency", flag = "esp_glowtransparency", min = 0, max = 1, default = values.GlowTransparency, interval = 0.05, callback = bind("GlowTransparency")})
+            end)
 
             element("Health Bar", "HealthBar", "HealthBarGradient")
             element("Health Text", "HealthText", "HealthTextGradient")
@@ -4591,7 +4649,7 @@
 
         function library:init_config(window)
             window:seperator({name = "Settings"})
-            local main = window:tab({name = "Configs", tabs = {"Main"}})
+            local main = window:tab({name = "Configs", icon = "settings", tabs = {"Main"}})
 
             local column = main:column({})
             local section = column:section({name = "Configs", size = 1, default = true, icon = "rbxassetid://139628202576511"})

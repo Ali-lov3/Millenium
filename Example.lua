@@ -101,6 +101,44 @@ for _,tab in {enemies, teammates, self_section} do
 end
 
 window:seperator({name = "Visuals"})
-local esp = window:esp_manager({name = "Esp", icon = "scan-eye"})
+local esp = window:esp_manager({
+    name = "Esp",
+    icon = "scan-eye",
+    settings = {
+        Enabled = {Value = true, Visible = true},
+
+        Box = {Value = true, Visible = true},
+        BoxGradient = {Value = false, Visible = true},
+
+        Glow = {Value = false, Visible = true},
+        GlowGradient = {Value = false, Visible = true},
+        GlowColor = {Value = Color3.fromRGB(255, 80, 180), Visible = true},
+        GlowTransparency = {Value = 0.4, Visible = true},
+
+        HealthBar = {Value = true, Visible = true},
+        HealthBarGradient = {Value = false, Visible = true},
+
+        HealthText = {Value = true, Visible = true},
+        HealthTextGradient = {Value = false, Visible = true},
+
+        Name = {Value = true, Visible = true},
+        DisplayName = {Value = false, Visible = false},
+        NameGradient = {Value = false, Visible = true},
+
+        Avatar = {Value = false, Visible = false},
+
+        Weapon = {Value = true, Visible = true},
+        WeaponGradient = {Value = false, Visible = true},
+
+        Backpack = {Value = false, Visible = false},
+        BackpackGradient = {Value = false, Visible = false},
+
+        Distance = {Value = true, Visible = true},
+        DistanceGradient = {Value = false, Visible = true},
+
+        GradientColor1 = {Value = Color3.fromRGB(255, 255, 255), Visible = true},
+        GradientColor2 = {Value = Color3.fromRGB(255, 80, 180), Visible = true}
+    }
+})
 
 library:init_config(window)
