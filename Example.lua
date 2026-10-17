@@ -3,17 +3,17 @@ local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/Ali-l
 local window = library:window({name = "nebula", suffix = "tech", gameInfo = "Milenium for Counter-Strike: Global Offensive"})
 
 window:seperator({name = "General"})
-local enemies, teammates, self_section = window:tab({name = "Example", tabs = {"Enemies", "Teammates", "Self"}})
+local enemies, teammates, self_section = window:tab({name = "Example", icon = "eye", tabs = {"Enemies", "Teammates", "Self"}})
 for _,tab in {enemies, teammates, self_section} do
     local column = tab:column({})
-    local section = column:section({name = "General", default = true, toggle = false})
+    local section = column:section({name = "General", icon = "info", default = true, toggle = false})
     section:label({name = "This is a title!", info = "Hello there this is a paragraph.. adawdawdawdHello there this is a paragraph.. adawdawdawdHello there this is a paragraph.. adawdawdawdHello there this is a paragraph.. adawdawdawd\nextra info here ig"})
 
     local page = tab:sub_tab({order = -10000, size = 2})
 
     for i = 1, 2 do
         local column = page:column({})
-        local section = column:section({name = "General", default = true})
+        local section = column:section({name = "General", icon = "user", default = true})
         section:toggle({name = "Enable ESP", seperator = true, callback = function(bool) print(bool) end})
         section:toggle({name = "Through walls", seperator = true})
         local toggle = section:toggle({name = "Shared ESP", seperator = true}):colorpicker({})
@@ -32,11 +32,11 @@ for _,tab in {enemies, teammates, self_section} do
     end
 end
 
-local enemies, teammates, self_section = window:tab({name = "Example", tabs = {"Enemies", "Teammates", "Self"}})
+local enemies, teammates, self_section = window:tab({name = "Example", icon = "crosshair", tabs = {"Enemies", "Teammates", "Self"}})
 for _,tab in {enemies, teammates, self_section} do
     for i = 1, 2 do
         local column = tab:column({})
-        local section = column:section({name = "General", default = true})
+        local section = column:section({name = "General", icon = "user", default = true})
         section:toggle({name = "Enable ESP", seperator = true, callback = function(bool) print(bool) end})
         section:toggle({name = "Through walls", seperator = true})
         local toggle = section:toggle({name = "Shared ESP", seperator = true}):colorpicker({})
@@ -55,10 +55,10 @@ for _,tab in {enemies, teammates, self_section} do
     end
 end
 
-local enemies, teammates, self_section = window:tab({name = "Example", tabs = {"Enemies", "Teammates", "Self"}})
+local enemies, teammates, self_section = window:tab({name = "Example", icon = "shield", tabs = {"Enemies", "Teammates", "Self"}})
 for _,tab in {enemies, teammates, self_section} do
     local column = tab:column({})
-    local section = column:section({name = "General", default = true})
+    local section = column:section({name = "General", icon = "user", default = true})
     section:toggle({name = "Enable ESP", seperator = true, callback = function(bool) print(bool) end})
     section:toggle({name = "Through walls", seperator = true})
     local toggle = section:toggle({name = "Shared ESP", seperator = true}):colorpicker({})
@@ -76,12 +76,12 @@ for _,tab in {enemies, teammates, self_section} do
     section:toggle({name = "Other Shit", seperator = false}):colorpicker({})
 end
 
-local enemies, teammates, self_section = window:tab({name = "Example", tabs = {"Enemies", "Teammates", "Self"}})
+local enemies, teammates, self_section = window:tab({name = "Example", icon = "users", tabs = {"Enemies", "Teammates", "Self"}})
 for _,tab in {enemies, teammates, self_section} do
     local column = tab:column({})
 
     for i = 1, 2 do
-        local section = column:section({name = "General", default = true, size = 0.5})
+        local section = column:section({name = "General", icon = "user", default = true, size = 0.5})
         section:toggle({name = "Enable ESP", seperator = true, callback = function(bool) print(bool) end})
         section:toggle({name = "Through walls", seperator = true})
         local toggle = section:toggle({name = "Shared ESP", seperator = true}):colorpicker({})
@@ -101,6 +101,6 @@ for _,tab in {enemies, teammates, self_section} do
 end
 
 window:seperator({name = "Visuals"})
-local esp = window:esp_manager({name = "Esp"})
+local esp = window:esp_manager({name = "Esp", icon = "scan-eye"})
 
 library:init_config(window)

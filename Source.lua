@@ -66,6 +66,54 @@
         return input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch
     end
 
+    local Lucide
+    pcall(function()
+        Lucide = loadstring(game:HttpGet("https://raw.githubusercontent.com/SiriusSoftwareLtd/Rayfield/main/icons.lua"))()
+    end)
+
+    local function ResolveIcon(Icon)
+        if type(Icon) == "number" then return "rbxassetid://" .. Icon end
+        if type(Icon) == "string" then
+            if string.match(Icon, "^rbxassetid://") then return Icon end
+            if string.match(Icon, "^rbxasset") or string.match(Icon, "^https?://") then return Icon end
+            if string.match(Icon, "^%d+$") then return "rbxassetid://" .. Icon end
+            local Name = string.lower(Icon)
+            if type(Lucide) == "function" then
+                local ok, Data = pcall(Lucide, Name)
+                if ok and type(Data) == "table" then
+                    local Id = Data.id or Data.Id or Data[1]
+                    local Size = Data.imageRectSize or Data.ImageRectSize or Data[2]
+                    local Offset = Data.imageRectOffset or Data.imageRectPosition or Data.ImageRectOffset or Data[3]
+                    if Id then return "rbxassetid://" .. tostring(Id), Offset, Size end
+                end
+            elseif type(Lucide) == "table" then
+                for _, Set in { Lucide["48px"], Lucide["256px"], Lucide } do
+                    if type(Set) == "table" then
+                        local Data = Set[Name]
+                        if type(Data) == "table" and Data[1] then
+                            return "rbxassetid://" .. tostring(Data[1]), Data[3], Data[2]
+                        end
+                    end
+                end
+            end
+        end
+        return "rbxassetid://0"
+    end
+
+    local function ToVector2(Value)
+        if typeof(Value) == "Vector2" then return Value end
+        if type(Value) == "table" then return Vector2.new(Value[1] or Value.X or 0, Value[2] or Value.Y or 0) end
+        return Vector2.new(0, 0)
+    end
+
+    local function ApplyIcon(Object, Icon)
+        if not Icon then return end
+        local Image, Offset, Size = ResolveIcon(Icon)
+        Object.Image = Image
+        Object.ImageRectOffset = Offset and ToVector2(Offset) or Vector2.new(0, 0)
+        Object.ImageRectSize = Size and ToVector2(Size) or Vector2.new(0, 0)
+    end
+
     getgenv().library = {
         directory = "milenium",
         folders = {
@@ -979,7 +1027,7 @@
                         Size = dim2(0, 22, 0, 22);
                         BorderSizePixel = 0;
                         BackgroundColor3 = rgb(255, 255, 255)
-                    }); library:apply_theme(items[ "icon" ], "accent", "ImageColor3");
+                    }); library:apply_theme(items[ "icon" ], "accent", "ImageColor3"); ApplyIcon(items[ "icon" ], cfg.icon);
 
                     items[ "name" ] = library:create( "TextLabel" , {
                         FontFace = fonts.font;
@@ -1453,7 +1501,7 @@
                     Size = dim2(0, 22, 0, 22);
                     BorderSizePixel = 0;
                     BackgroundColor3 = rgb(255, 255, 255)
-                }); library:apply_theme(items[ "Icon" ], "accent", "ImageColor3");
+                }); library:apply_theme(items[ "Icon" ], "accent", "ImageColor3"); ApplyIcon(items[ "Icon" ], cfg.icon);
 
                 items[ "section_title" ] = library:create( "TextLabel" , {
                     FontFace = fonts.font;
