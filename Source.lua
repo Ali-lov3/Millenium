@@ -182,7 +182,7 @@
         [Enum.KeyCode.RightBracket] = "]",
         [Enum.KeyCode.RightParenthesis] = ")",
         [Enum.KeyCode.LeftParenthesis] = "(",
-        [Enum.KeyCode.Semicolon] = ",",
+        [Enum.KeyCode.Semicolon] = ";",
         [Enum.KeyCode.Quote] = "'",
         [Enum.KeyCode.BackSlash] = "\\",
         [Enum.KeyCode.Comma] = ",",
@@ -252,7 +252,8 @@
     end
 
         function library:tween(obj, properties, easing_style, time)
-            local tween = tween_service:Create(obj, TweenInfo.new(time or 0.25, easing_style or Enum.EasingStyle.Quint, Enum.EasingDirection.InOut, 0, false, 0), properties):Play()
+            local tween = tween_service:Create(obj, TweenInfo.new(time or 0.25, easing_style or Enum.EasingStyle.Quint, Enum.EasingDirection.InOut, 0, false, 0), properties)
+            tween:Play()
 
             return tween
         end
@@ -445,7 +446,8 @@
             local list = {}
 
             for idx, file in listfiles(library.directory .. "/configs") do
-                local name = file:gsub(library.directory .. "/configs\\", ""):gsub(".cfg", ""):gsub(library.directory .. "\\configs\\", "")
+                local name = string.match(file, "([^/\\]+)$") or file
+                name = string.gsub(name, "%.cfg$", "")
                 list[#list + 1] = name
             end
 
@@ -683,7 +685,7 @@
                     BackgroundColor3 = rgb(21, 21, 23)
                 });
 
-                items[ "button_holder" ] = library:create( "Frame" , {
+                items[ "button_holder" ] = library:create( "ScrollingFrame" , {
                     Parent = items[ "side_frame" ];
                     Name = "\0";
                     BackgroundTransparency = 1;
@@ -691,6 +693,11 @@
                     BorderColor3 = rgb(0, 0, 0);
                     Size = dim2(1, 0, 1, -60);
                     BorderSizePixel = 0;
+                    Active = true;
+                    ScrollBarThickness = 0;
+                    CanvasSize = dim2(0, 0, 0, 0);
+                    AutomaticCanvasSize = Enum.AutomaticSize.Y;
+                    ScrollingDirection = Enum.ScrollingDirection.Y;
                     BackgroundColor3 = rgb(255, 255, 255)
                 }); cfg.button_holder = items[ "button_holder" ];
 
@@ -1064,7 +1071,7 @@
                         ApplyStrokeMode = Enum.ApplyStrokeMode.Border
                     });
 
-                    items[ "multi_section_button_holder" ] = library:create( "Frame" , {
+                    items[ "multi_section_button_holder" ] = library:create( "ScrollingFrame" , {
                         Parent = library.cache;
                         BackgroundTransparency = 1;
                         Name = "\0";
@@ -1072,8 +1079,23 @@
                         BorderColor3 = rgb(0, 0, 0);
                         Size = dim2(1, 0, 1, 0);
                         BorderSizePixel = 0;
+                        Active = true;
+                        ScrollBarThickness = 2;
+                        ScrollBarImageColor3 = rgb(44, 44, 46);
+                        CanvasSize = dim2(0, 0, 0, 0);
+                        AutomaticCanvasSize = Enum.AutomaticSize.X;
+                        ScrollingDirection = Enum.ScrollingDirection.X;
                         BackgroundColor3 = rgb(255, 255, 255)
                     });
+
+                    items[ "multi_section_button_holder" ].InputChanged:Connect(function(input)
+                        if input.UserInputType == Enum.UserInputType.MouseWheel then
+                            local holder = items[ "multi_section_button_holder" ]
+                            local limit = max(holder.AbsoluteCanvasSize.X - holder.AbsoluteSize.X, 0)
+
+                            holder.CanvasPosition = vec2(clamp(holder.CanvasPosition.X - input.Position.Z * 40, 0, limit), 0)
+                        end
+                    end)
 
                     library:create( "UIListLayout" , {
                         Parent = items[ "multi_section_button_holder" ];
@@ -1236,7 +1258,9 @@
                         cfg.pages[#cfg.pages + 1] = setmetatable(data, library)
                     end
 
-                    cfg.pages[1].open_page()
+                    if cfg.pages[1] then
+                        cfg.pages[1].open_page()
+                    end
             end
 
             function cfg.open_tab()
@@ -1326,9 +1350,12 @@
             function library:column(properties)
                 local cfg = {items = {}, size = properties.size or 1}
 
+                local column_parent = self[ "parent" ] or self.items["tab_parent"]
+                column_parent.Visible = true
+
                 local items = cfg.items; do
                     items[ "column" ] = library:create( "Frame" , {
-                        Parent = self[ "parent" ] or self.items["tab_parent"];
+                        Parent = column_parent;
                         BackgroundTransparency = 1;
                         Name = "\0";
                         BorderColor3 = rgb(0, 0, 0);
@@ -1345,6 +1372,7 @@
                     library:create( "UIListLayout" , {
                         Parent = items[ "column" ];
                         HorizontalFlex = Enum.UIFlexAlignment.Fill;
+                        VerticalFlex = Enum.UIFlexAlignment.Fill;
                         Padding = dim(0, 10);
                         FillDirection = Enum.FillDirection.Vertical;
                         SortOrder = Enum.SortOrder.LayoutOrder
@@ -1363,9 +1391,10 @@
                         BackgroundTransparency = 1;
                         Name = "\0";
                         Size = dim2(0,0,cfg.size,0);
+                        LayoutOrder = cfg.order;
                         BorderColor3 = rgb(0, 0, 0);
                         BorderSizePixel = 0;
-                        Visible = true;
+                        Visible = false;
                         BackgroundColor3 = rgb(255, 255, 255)
                     });
 
@@ -1622,20 +1651,21 @@
                     library:tween(items[ "toggle_circle" ], {BackgroundColor3 = bool and rgb(255, 255, 255) or rgb(86, 86, 88), Position = bool and dim2(1, -14, 0, 2) or dim2(0, 2, 0, 2)}, Enum.EasingStyle.Quad)
                     library:tween(items[ "fade" ], {BackgroundTransparency = bool and 1 or 0.8}, Enum.EasingStyle.Quad)
                 end
+
+                cfg.toggle_section(cfg.default)
             end
 
             return setmetatable(cfg, library)
         end
 
         function library:toggle(options)
-            local rand = math.random(1, 2)
             local cfg = {
-                enabled = options.enabled or nil,
+                enabled = options.enabled or options.default or false,
                 name = options.name or "Toggle",
                 info = options.info or nil,
                 flag = options.flag or library:next_flag(),
 
-                type = options.type and string.lower(options.type) or rand == 1 and "toggle" or "checkbox";
+                type = options.type and string.lower(options.type) or "toggle";
 
                 default = options.default or false,
                 folding = options.folding or false,
@@ -1841,6 +1871,8 @@
             end;
 
             function cfg.set(bool)
+                cfg.enabled = bool
+
                 if cfg.type == "checkbox" then
                     library:tween(items[ "tick" ], {Rotation = bool and 0 or 45, ImageTransparency = bool and 0 or 1})
                     library:tween(items[ "toggle_button" ], {BackgroundColor3 = bool and themes.preset.accent or rgb(67, 67, 68)})
@@ -1852,10 +1884,6 @@
                 end
 
                 cfg.callback(bool)
-
-                if cfg.folding then
-                    elements.Visible = bool
-                end
 
                 flags[cfg.flag] = bool
             end
@@ -1890,8 +1918,18 @@
         end
 
         function library:slider(options)
+            local seperator = options.seperator
+
+            if seperator == nil then
+                seperator = options.Seperator
+            end
+
+            if seperator == nil then
+                seperator = true
+            end
+
             local cfg = {
-                name = options.name or nil,
+                name = options.name or "Slider",
                 suffix = options.suffix or "",
                 flag = options.flag or library:next_flag(),
                 callback = options.callback or function() end,
@@ -1902,7 +1940,7 @@
                 intervals = options.interval or options.decimal or 1,
                 default = options.default or 10,
                 value = options.default or 10,
-                seperator = options.seperator or options.Seperator or true;
+                seperator = seperator;
 
                 dragging = false,
                 items = {}
@@ -2069,7 +2107,7 @@
             function cfg.set(value)
                 cfg.value = clamp(library:round(value, cfg.intervals), cfg.min, cfg.max)
 
-                library:tween(items[ "fill" ], {Size = dim2((cfg.value - cfg.min) / (cfg.max - cfg.min), cfg.value == cfg.min and 0 or -4, 0, 2)}, Enum.EasingStyle.Linear, 0.05)
+                library:tween(items[ "fill" ], {Size = dim2((cfg.value - cfg.min) / (cfg.max - cfg.min), cfg.value == cfg.min and 0 or -4, 0, 4)}, Enum.EasingStyle.Linear, 0.05)
                 items[ "value" ].Text = tostring(cfg.value) .. cfg.suffix
 
                 flags[cfg.flag] = cfg.value
@@ -2130,6 +2168,16 @@
         end
 
         function library:dropdown(options)
+            local seperator = options.seperator
+
+            if seperator == nil then
+                seperator = options.Seperator
+            end
+
+            if seperator == nil then
+                seperator = true
+            end
+
             local cfg = {
                 name = options.name or nil;
                 info = options.info or nil;
@@ -2147,10 +2195,10 @@
                 ignore = options.ignore or false;
                 items = {};
                 y_size;
-                seperator = options.seperator or options.Seperator or true;
+                seperator = seperator;
             }
 
-            cfg.default = options.default or (cfg.multi and {cfg.items[1]}) or cfg.items[1] or "None"
+            cfg.default = options.default or (cfg.multi and {}) or cfg.options[1] or "None"
             flags[cfg.flag] = cfg.default
 
             local items = cfg.items; do
@@ -2173,7 +2221,7 @@
                         FontFace = fonts.small;
                         TextColor3 = rgb(245, 245, 245);
                         BorderColor3 = rgb(0, 0, 0);
-                        Text = "Dropdown";
+                        Text = cfg.name or "Dropdown";
                         Parent = items[ "dropdown_object" ];
                         Name = "\0";
                         Size = dim2(1, 0, 0, 0);
@@ -2416,7 +2464,13 @@
 
                 for _, option in list do
                     local button = cfg.render_option(option)
-                    cfg.y_size += button.AbsoluteSize.Y / (library.scale or 1) + 6
+                    local option_height = button.AbsoluteSize.Y / (library.scale or 1)
+
+                    if option_height < 12 then
+                        option_height = 16
+                    end
+
+                    cfg.y_size += option_height + 6
                     insert(cfg.option_instances, button)
 
                     button.MouseButton1Down:Connect(function()
@@ -2741,10 +2795,10 @@
                         BorderColor3 = rgb(0, 0, 0);
                         AutoButtonColor = false;
                         Text = "";
-                        AnchorPoint = vec2(0, 1);
+                        AnchorPoint = vec2(0.5, 0.5);
                         Parent = items[ "saturation_holder" ];
                         Name = "\0";
-                        Position = dim2(0, 0, 4, 0);
+                        Position = dim2(0, 0, 1, 0);
                         Size = dim2(0, 8, 0, 8);
                         ZIndex = 5;
                         BorderSizePixel = 0;
@@ -2788,7 +2842,7 @@
                         BorderColor3 = rgb(0, 0, 0);
                         AutoButtonColor = false;
                         Text = "";
-                        AnchorPoint = vec2(0, 0.5);
+                        AnchorPoint = vec2(0.5, 0.5);
                         Parent = items[ "hue_gradient" ];
                         Name = "\0";
                         Position = dim2(0, 0, 0.5, 0);
@@ -2830,7 +2884,7 @@
                         BorderColor3 = rgb(0, 0, 0);
                         AutoButtonColor = false;
                         Text = "";
-                        AnchorPoint = vec2(0, 0.5);
+                        AnchorPoint = vec2(0.5, 0.5);
                         Parent = items[ "alpha_gradient" ];
                         Name = "\0";
                         Position = dim2(1, 0, 0.5, 0);
@@ -2917,12 +2971,6 @@
                     });
             end;
 
-            local function local_size(object)
-                local sc = (items[ "colorpicker_holder" ].Parent == library[ "root" ]) and (library.scale or 1) or 1
-
-                return object.AbsoluteSize / sc
-            end
-
             function cfg.set_visible(bool)
                 local sc = library.scale or 1
 
@@ -2953,13 +3001,9 @@
 
                 local Color = hsv(h, s, v)
 
-                local hue_size = local_size(items[ "hue_gradient" ]).X - local_size(items[ "hue_picker" ]).X
-                local alpha_size = local_size(items[ "alpha_gradient" ]).X - local_size(items[ "alpha_picker" ]).X
-                local sat_size = local_size(items[ "saturation_holder" ]) - local_size(items[ "satvalpicker" ])
-
-                library:tween(items[ "hue_picker" ], {Position = dim2(0, hue_size * h, 0.5, 0)}, Enum.EasingStyle.Linear, 0.05)
-                library:tween(items[ "alpha_picker" ], {Position = dim2(0, alpha_size * (1 - a), 0.5, 0)}, Enum.EasingStyle.Linear, 0.05)
-                library:tween(items[ "satvalpicker" ], {Position = dim2(0, s * sat_size.X, 1, 1 - v * sat_size.Y)}, Enum.EasingStyle.Linear, 0.05)
+                library:tween(items[ "hue_picker" ], {Position = dim2(h, 0, 0.5, 0)}, Enum.EasingStyle.Linear, 0.05)
+                library:tween(items[ "alpha_picker" ], {Position = dim2(1 - a, 0, 0.5, 0)}, Enum.EasingStyle.Linear, 0.05)
+                library:tween(items[ "satvalpicker" ], {Position = dim2(s, 0, 1 - v, 0)}, Enum.EasingStyle.Linear, 0.05)
 
                 items[ "alpha_indicator" ]:FindFirstChildOfClass("UIGradient").Color = rgbseq{rgbkey(0, rgb(112, 112, 112)), rgbkey(1, hsv(h, 1, 1))};
 
@@ -3380,7 +3424,13 @@
                         }); cfg.hold_instances[option] = name
                         library:apply_theme(name, "accent", "TextColor3")
 
-                        cfg.y_size += name.AbsoluteSize.Y / (library.scale or 1)
+                        local option_height = name.AbsoluteSize.Y / (library.scale or 1)
+
+                        if option_height < 12 then
+                            option_height = 16
+                        end
+
+                        cfg.y_size += option_height
 
                         library:create( "UIPadding" , {
                             Parent = name;
@@ -3473,6 +3523,8 @@
                 library:tween(items[ "dropdown" ], {Size = dim_offset(items[ "keybind_holder" ].AbsoluteSize.X / sc, size)})
 
                 items[ "dropdown" ].Position = dim_offset(items[ "keybind_holder" ].AbsolutePosition.X / sc, (items[ "keybind_holder" ].AbsolutePosition.Y + items[ "keybind_holder" ].AbsoluteSize.Y + 60) / sc)
+
+                library:close_element(cfg)
             end
 
             items[ "keybind_holder" ].MouseButton1Down:Connect(function()
@@ -3742,6 +3794,9 @@
                 for _,option in cfg.data_store do
                     option:Destroy()
                 end
+
+                cfg.data_store = {}
+                cfg.current_element = nil
 
                 for _, option_data in options_to_refresh do
                     local button = library:create( "TextButton" , {
@@ -4658,9 +4713,40 @@
             local column = main:column({})
             local section = column:section({name = "Settings", side = "right", size = 1, default = true, icon = "rbxassetid://129380150574313"})
             section:textbox({name = "Config name:", flag = "config_name_text"})
-            section:button({name = "Save", callback = function() writefile(library.directory .. "/configs/" .. flags["config_name_text"] or flags["config_name_list"] .. ".cfg", library:get_config()) library:update_config_list() notifications:create_notification({name = "Configs", info = "Saved config to:\n" .. flags["config_name_list"] or flags["config_name_text"]}) end})
-            section:button({name = "Load", callback = function() library:load_config(readfile(library.directory .. "/configs/" .. flags["config_name_list"] .. ".cfg"))  library:update_config_list() notifications:create_notification({name = "Configs", info = "Loaded config:\n" .. flags["config_name_list"]}) end})
-            section:button({name = "Delete", callback = function() delfile(library.directory .. "/configs/" .. flags["config_name_list"] .. ".cfg")  library:update_config_list() notifications:create_notification({name = "Configs", info = "Deleted config:\n" .. flags["config_name_list"]}) end})
+            section:button({name = "Save", callback = function()
+                local typed = flags["config_name_text"]
+                local name = (type(typed) == "string" and typed ~= "" and typed) or flags["config_name_list"]
+
+                if not name then
+                    return
+                end
+
+                writefile(library.directory .. "/configs/" .. name .. ".cfg", library:get_config())
+                library:update_config_list()
+                notifications:create_notification({name = "Configs", info = "Saved config to:\n" .. name})
+            end})
+            section:button({name = "Load", callback = function()
+                local name = flags["config_name_list"]
+
+                if not name or not isfile(library.directory .. "/configs/" .. name .. ".cfg") then
+                    return
+                end
+
+                library:load_config(readfile(library.directory .. "/configs/" .. name .. ".cfg"))
+                library:update_config_list()
+                notifications:create_notification({name = "Configs", info = "Loaded config:\n" .. name})
+            end})
+            section:button({name = "Delete", callback = function()
+                local name = flags["config_name_list"]
+
+                if not name or not isfile(library.directory .. "/configs/" .. name .. ".cfg") then
+                    return
+                end
+
+                delfile(library.directory .. "/configs/" .. name .. ".cfg")
+                library:update_config_list()
+                notifications:create_notification({name = "Configs", info = "Deleted config:\n" .. name})
+            end})
             section:colorpicker({name = "Menu Accent", callback = function(color, alpha) library:update_theme("accent", color) end, color = themes.preset.accent})
 
             window.menu_bind = section:keybind({name = "Menu Bind", callback = function(bool) window.toggle_menu(bool) end, default = true})
@@ -4672,7 +4758,7 @@
             for i, v in notifications.notifs do
                 local Position = vec2(20, offset)
                 library:tween(v, {Position = dim_offset(Position.X, Position.Y)}, Enum.EasingStyle.Quad, 0.4)
-                offset += (v.AbsoluteSize.Y / (library.scale or 1) + 10)
+                offset += (max(v.AbsoluteSize.Y / (library.scale or 1), 53) + 10)
             end
 
             return offset
@@ -4757,11 +4843,12 @@
                     Parent = items[ "notification" ];
                     Name = "\0";
                     Position = dim2(0, 9, 0, 22);
+                    Size = dim2(1, -9, 0, 0);
                     BorderSizePixel = 0;
                     BackgroundTransparency = 1;
                     TextXAlignment = Enum.TextXAlignment.Left;
                     TextWrapped = true;
-                    AutomaticSize = Enum.AutomaticSize.XY;
+                    AutomaticSize = Enum.AutomaticSize.Y;
                     TextSize = 14;
                     BackgroundColor3 = rgb(255, 255, 255)
                 });
@@ -4795,8 +4882,7 @@
                 });
             end
 
-            local index = #notifications.notifs + 1
-            notifications.notifs[index] = items[ "notification" ]
+            insert(notifications.notifs, items[ "notification" ])
 
             notifications:fade(items[ "notification" ], false)
 
@@ -4810,7 +4896,13 @@
             task.spawn(function()
                 task.wait(cfg.lifetime)
 
-                notifications.notifs[index] = nil
+                local notif_index = find(notifications.notifs, items[ "notification" ])
+
+                if notif_index then
+                    remove(notifications.notifs, notif_index)
+                end
+
+                notifications:refresh_notifs()
 
                 notifications:fade(items[ "notification" ], true)
 
