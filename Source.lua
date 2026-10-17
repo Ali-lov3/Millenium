@@ -3766,36 +3766,36 @@
                 };
 
                 values = {
-                    Enabled = true;
+                    Enabled = false;
 
-                    Box = true;
-                    BoxGradient = true;
+                    Box = false;
+                    BoxGradient = false;
 
-                    Glow = true;
-                    GlowGradient = true;
+                    Glow = false;
+                    GlowGradient = false;
                     GlowColor = rgb(255, 80, 180);
                     GlowTransparency = 0.4;
 
-                    HealthBar = true;
+                    HealthBar = false;
                     HealthBarGradient = false;
 
-                    HealthText = true;
+                    HealthText = false;
                     HealthTextGradient = false;
 
-                    Name = true;
-                    DisplayName = true;
-                    NameGradient = true;
+                    Name = false;
+                    DisplayName = false;
+                    NameGradient = false;
 
-                    Avatar = true;
+                    Avatar = false;
 
-                    Weapon = true;
-                    WeaponGradient = true;
+                    Weapon = false;
+                    WeaponGradient = false;
 
-                    Backpack = true;
-                    BackpackGradient = true;
+                    Backpack = false;
+                    BackpackGradient = false;
 
-                    Distance = true;
-                    DistanceGradient = true;
+                    Distance = false;
+                    DistanceGradient = false;
 
                     GradientColor1 = rgb(255, 255, 255);
                     GradientColor2 = rgb(255, 80, 180);
@@ -4342,7 +4342,7 @@
             local right = page:column({})
             local preview = right:section({name = "Preview", size = 1, default = true})
 
-            general:toggle({name = "Enable ESP", flag = "esp_enabled", default = true, enabled = true, seperator = true, callback = bind("Enabled")})
+            general:toggle({name = "Enable ESP", flag = "esp_enabled", default = false, seperator = true, callback = bind("Enabled")})
             general:colorpicker({name = "Gradient Color 1", flag = "esp_gradient_color_1", color = values.GradientColor1, seperator = true, callback = bind("GradientColor1")})
             general:colorpicker({name = "Gradient Color 2", flag = "esp_gradient_color_2", color = values.GradientColor2, seperator = true, callback = bind("GradientColor2")})
             general:toggle({name = "Rotate Preview", flag = "esp_rotate", default = true, enabled = true, seperator = true, callback = function(bool)
