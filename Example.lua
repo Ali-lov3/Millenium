@@ -137,6 +137,11 @@ local esp = window:esp_manager({
         SkeletonColor = {Value = Color3.fromRGB(255, 255, 255), Visible = true},
         SkeletonThickness = {Value = 2, Visible = true},
 
+        Dot = {Value = false, Visible = true},
+        DotGradient = {Value = false, Visible = true},
+        DotColor = {Value = Color3.fromRGB(255, 255, 255), Visible = true},
+        DotSize = {Value = 8, Visible = true},
+
         Glow = {Value = false, Visible = true},
         GlowGradient = {Value = false, Visible = true},
         GlowColor = {Value = Color3.fromRGB(255, 80, 180), Visible = true},

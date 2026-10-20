@@ -4017,6 +4017,11 @@
                     SkeletonColor = rgb(255, 255, 255);
                     SkeletonThickness = 2;
 
+                    Dot = false;
+                    DotGradient = false;
+                    DotColor = rgb(255, 255, 255);
+                    DotSize = 8;
+
                     GradientColor1 = rgb(255, 255, 255);
                     GradientColor2 = rgb(255, 80, 180);
                     GradientAnimation = false;
@@ -4165,6 +4170,34 @@
                     Name = "FillGradient";
                     Rotation = 90;
                     Parent = obj.Fill
+                });
+
+                obj.Dot = library:create( "Frame" , {
+                    Name = "Dot";
+                    Parent = obj.Box;
+                    AnchorPoint = vec2(0.5, 0.5);
+                    BackgroundColor3 = rgb(255, 255, 255);
+                    BorderSizePixel = 0;
+                    Size = dim_offset(8, 8);
+                    Visible = false;
+                    ZIndex = 3
+                });
+
+                library:create( "UICorner" , {
+                    Parent = obj.Dot;
+                    CornerRadius = dim(0.5, 0)
+                });
+
+                library:create( "UIStroke" , {
+                    Color = rgb(0, 0, 0);
+                    Thickness = 1;
+                    ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
+                    Parent = obj.Dot
+                });
+
+                obj.DotGradient = library:create( "UIGradient" , {
+                    Name = "DotGradient";
+                    Parent = obj.Dot
                 });
 
                 obj.HealthBarBg = library:create( "Frame" , {
@@ -4375,7 +4408,7 @@
                     obj.BackpackText.Visible = false
                 end
 
-                obj.Box.Visible = values.Enabled and (values.Box or values.Glow or values.Skeleton or values.HealthBar or values.HealthText or values.Name or values.DisplayName or values.Avatar or values.Weapon or values.Distance or values.Backpack)
+                obj.Box.Visible = values.Enabled and (values.Box or values.Glow or values.Skeleton or values.Dot or values.HealthBar or values.HealthText or values.Name or values.DisplayName or values.Avatar or values.Weapon or values.Distance or values.Backpack)
             end
 
             local function part_point(model, part_name, offset)
@@ -4547,6 +4580,38 @@
                 hide_bones(obj, used)
             end
 
+            local function draw_dot(obj, model, project, origin)
+                local dot = obj.Dot
+
+                if not values.Dot then
+                    dot.Visible = false
+                    return
+                end
+
+                local position = part_point(model, "Head")
+                local point = position and project(position)
+
+                if not point then
+                    dot.Visible = false
+                    return
+                end
+
+                local relative = point - origin
+
+                dot.Size = dim_offset(values.DotSize, values.DotSize)
+                dot.Position = dim_offset(relative.X, relative.Y)
+                dot.Visible = true
+
+                obj.DotGradient.Enabled = values.DotGradient
+
+                if values.DotGradient then
+                    obj.DotGradient.Color = values.GradientAnimation and cfg.animated_sequence or rgbseq(values.GradientColor1, values.GradientColor2)
+                    dot.BackgroundColor3 = rgb(255, 255, 255)
+                else
+                    dot.BackgroundColor3 = values.DotColor
+                end
+            end
+
             local function update_player(obj)
                 local box = obj.Box
                 local player = obj.Player
@@ -4586,7 +4651,7 @@
                 box.Position = dim_offset(hrp_position.X - (width / 2), top_screen.Y)
                 box.Size = dim_offset(width, height)
 
-                draw_skeleton(obj, character, function(position)
+                local function project_world(position)
                     local point = current_camera:WorldToViewportPoint(position)
 
                     if point.Z <= 0 then
@@ -4594,7 +4659,12 @@
                     end
 
                     return vec2(point.X, point.Y)
-                end, vec2(hrp_position.X - (width / 2), top_screen.Y))
+                end
+
+                local box_origin = vec2(hrp_position.X - (width / 2), top_screen.Y)
+
+                draw_skeleton(obj, character, project_world, box_origin)
+                draw_dot(obj, character, project_world, box_origin)
 
                 local glow_padding = clamp(height * 0.05, 1, 15)
 
@@ -4674,7 +4744,7 @@
                 local tan_half = tan(rad(camera.FieldOfView / 2))
                 local origin = vec2(width / 2 - box_width / 2, height / 2 - box_height / 2)
 
-                draw_skeleton(items[ "preview" ], cfg.model, function(position)
+                local function project_preview(position)
                     local relative = camera.CFrame:PointToObjectSpace(position)
                     local depth = -relative.Z
 
@@ -4686,7 +4756,10 @@
                     local ndc_y = relative.Y / (depth * tan_half)
 
                     return vec2((ndc_x * 0.5 + 0.5) * width, (0.5 - ndc_y * 0.5) * height)
-                end, origin)
+                end
+
+                draw_skeleton(items[ "preview" ], cfg.model, project_preview, origin)
+                draw_dot(items[ "preview" ], cfg.model, project_preview, origin)
             end
 
             function cfg.layout()
@@ -4923,6 +4996,14 @@
             end)
             build(glow.items[ "elements" ], "GlowTransparency", function()
                 return glow:slider({name = "Transparency", flag = "esp_glowtransparency", min = 0, max = 1, default = values.GlowTransparency, interval = 0.05, callback = bind("GlowTransparency")})
+            end)
+
+            local dot = element("Dot", "Dot", "DotGradient")
+            build(dot.items[ "elements" ], "DotColor", function()
+                return dot:colorpicker({name = "Dot Color", flag = "esp_dotcolor", color = values.DotColor, seperator = true, callback = bind("DotColor")})
+            end)
+            build(dot.items[ "elements" ], "DotSize", function()
+                return dot:slider({name = "Size", flag = "esp_dotsize", min = 2, max = 20, default = values.DotSize, interval = 1, callback = bind("DotSize")})
             end)
 
             element("Health Bar", "HealthBar", "HealthBarGradient")
