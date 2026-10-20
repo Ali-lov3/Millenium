@@ -159,7 +159,10 @@ local esp = window:esp_manager({
         DistanceGradient = {Value = false, Visible = true},
 
         GradientColor1 = {Value = Color3.fromRGB(255, 255, 255), Visible = true},
-        GradientColor2 = {Value = Color3.fromRGB(255, 80, 180), Visible = true}
+        GradientColor2 = {Value = Color3.fromRGB(255, 80, 180), Visible = true},
+
+        GradientAnimation = {Value = false, Visible = true},
+        GradientAnimationSpeed = {Value = 4, Visible = true}
     }
 })
 

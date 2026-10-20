@@ -4014,6 +4014,8 @@
 
                     GradientColor1 = rgb(255, 255, 255);
                     GradientColor2 = rgb(255, 80, 180);
+                    GradientAnimation = false;
+                    GradientAnimationSpeed = 4;
                 };
             }
 
@@ -4215,7 +4217,7 @@
             end
 
             local function apply(obj, info)
-                local color_sequence = rgbseq(values.GradientColor1, values.GradientColor2)
+                local color_sequence = values.GradientAnimation and cfg.animated_sequence or rgbseq(values.GradientColor1, values.GradientColor2)
 
                 if values.Glow then
                     obj.Glow.Visible = true
@@ -4452,6 +4454,22 @@
                 apply(obj, info)
             end
 
+            function cfg.build_animated_sequence()
+                local phase = (os.clock() * values.GradientAnimationSpeed * 0.05) % 1
+                local first = values.GradientColor1
+                local second = values.GradientColor2
+                local keypoints = {}
+
+                for index = 0, 10 do
+                    local position = index / 10
+                    local mix = 0.5 + 0.5 * math.cos((position + phase) * math.pi * 2)
+
+                    insert(keypoints, rgbkey(position, first:Lerp(second, mix)))
+                end
+
+                cfg.animated_sequence = rgbseq(keypoints)
+            end
+
             function cfg.layout()
                 if not cfg.ready then
                     return
@@ -4624,6 +4642,10 @@
             build(general.items[ "elements" ], "GradientColor2", function()
                 return general:colorpicker({name = "Gradient Color 2", flag = "esp_gradient_color_2", color = values.GradientColor2, seperator = true, callback = bind("GradientColor2")})
             end)
+
+            local gradient_animation = general:toggle({name = "Gradient Animation", flag = "esp_gradient_animation", default = values.GradientAnimation, enabled = values.GradientAnimation, seperator = true, callback = bind("GradientAnimation")})
+            local gradient_animation_options = gradient_animation:group({})
+            gradient_animation_options:slider({name = "Animation Speed", flag = "esp_gradient_animation_speed", min = 1, max = 10, default = values.GradientAnimationSpeed, interval = 1, callback = bind("GradientAnimationSpeed")})
             general:toggle({name = "Rotate Preview", flag = "esp_rotate", default = true, enabled = true, seperator = true, callback = function(bool)
                 cfg.rotate = bool
             end})
@@ -4783,6 +4805,11 @@
             library:connection(items[ "viewport" ]:GetPropertyChangedSignal("AbsoluteSize"), cfg.layout)
 
             library:connection(run.RenderStepped, function(delta)
+                if values.GradientAnimation then
+                    cfg.build_animated_sequence()
+                    cfg.refresh()
+                end
+
                 if cfg.motors then
                     for _, motor in next, cfg.motors do
                         if motor.Parent then
