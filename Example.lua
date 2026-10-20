@@ -100,6 +100,28 @@ for _,tab in {enemies, teammates, self_section} do
     end
 end
 
+window:seperator({name = "Options"})
+local aimbot_page = window:tab({name = "Aimbot", icon = "crosshair", tabs = {"Main"}})
+local column = aimbot_page:column({})
+local section = column:section({name = "Aimbot", icon = "crosshair", default = true, size = 1})
+
+local aimbot = section:toggle({name = "Enable Aimbot", seperator = true, callback = function(bool) print(bool) end})
+local aimbot_options = aimbot:group({})
+aimbot_options:slider({name = "FOV", min = 0, max = 360, default = 90, suffix = "°", seperator = true})
+aimbot_options:slider({name = "Smoothness", min = 0, max = 100, default = 20, suffix = "%", seperator = true})
+aimbot_options:dropdown({name = "Hitbox", items = {"Head", "Torso", "Legs"}, default = "Head", seperator = true})
+aimbot_options:dropdown({name = "Checks", items = {"Visible", "Alive", "Team"}, default = {"Alive"}, multi = true, seperator = true})
+aimbot_options:toggle({name = "Draw FOV", seperator = true}):colorpicker({})
+
+local silent = section:toggle({
+    name = "Silent Aim",
+    seperator = true,
+    children = function(group)
+        group:slider({name = "Hit Chance", min = 0, max = 100, default = 75, suffix = "%", seperator = true})
+        group:dropdown({name = "Target Part", items = {"Head", "Torso"}, default = "Head", seperator = true})
+    end
+})
+
 window:seperator({name = "Visuals"})
 local esp = window:esp_manager({
     name = "Esp",

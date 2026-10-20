@@ -1678,6 +1678,7 @@
                 callback = options.callback or function() end,
 
                 items = {};
+                groups = {};
                 seperator = options.seperator or options.Seperator or false;
             }
 
@@ -1892,6 +1893,16 @@
                 cfg.callback(bool)
 
                 flags[cfg.flag] = bool
+
+                if #cfg.groups > 0 then
+                    if not bool then
+                        library:close_element()
+                    end
+
+                    for _, group in next, cfg.groups do
+                        group.items[ "elements" ].Visible = bool
+                    end
+                end
             end
 
             items[ "toggle" ].MouseButton1Click:Connect(function()
@@ -1919,6 +1930,50 @@
             cfg.set(cfg.default)
 
             config_flags[cfg.flag] = cfg.set
+
+            local object = setmetatable(cfg, library)
+
+            if type(options.children) == "function" then
+                options.children(object:group({}))
+            end
+
+            return object
+        end
+
+        function library:group(options)
+            options = options or {}
+
+            local cfg = {
+                toggle = self;
+                items = {};
+            }
+
+            local items = cfg.items; do
+                items[ "elements" ] = library:create( "Frame" , {
+                    Name = "\0";
+                    Parent = self.items[ "toggle" ].Parent;
+                    BackgroundTransparency = 1;
+                    BorderColor3 = rgb(0, 0, 0);
+                    Size = dim2(1, 0, 0, 0);
+                    BorderSizePixel = 0;
+                    AutomaticSize = Enum.AutomaticSize.Y;
+                    Visible = self.enabled and true or false;
+                    BackgroundColor3 = rgb(255, 255, 255)
+                });
+
+                library:create( "UIListLayout" , {
+                    Parent = items[ "elements" ];
+                    Padding = dim(0, 10);
+                    SortOrder = Enum.SortOrder.LayoutOrder
+                });
+
+                library:create( "UIPadding" , {
+                    Parent = items[ "elements" ];
+                    PaddingLeft = dim(0, options.indent == nil and 10 or options.indent)
+                });
+            end
+
+            insert(self.groups, cfg)
 
             return setmetatable(cfg, library)
         end
