@@ -4254,6 +4254,18 @@
                 return obj
             end
 
+            local function paint(gradient, sequence, base_rotation)
+                gradient.Color = sequence
+
+                if values.GradientAnimation then
+                    gradient.Rotation = cfg.animated_rotation or 0
+                    gradient.Offset = cfg.animated_offset or vec2(0, 0)
+                else
+                    gradient.Rotation = base_rotation
+                    gradient.Offset = vec2(0, 0)
+                end
+            end
+
             local function apply(obj, info)
                 local color_sequence = values.GradientAnimation and cfg.animated_sequence or rgbseq(values.GradientColor1, values.GradientColor2)
 
@@ -4263,7 +4275,7 @@
                     obj.GlowGradient.Enabled = values.GlowGradient
 
                     if values.GlowGradient then
-                        obj.GlowGradient.Color = color_sequence
+                        paint(obj.GlowGradient, color_sequence, 0)
                         obj.Glow.ImageColor3 = rgb(255, 255, 255)
                     else
                         obj.Glow.ImageColor3 = values.GlowColor
@@ -4276,14 +4288,14 @@
                 obj.StrokeGradient.Enabled = values.Box and values.BoxGradient
 
                 if values.BoxGradient then
-                    obj.StrokeGradient.Color = color_sequence
+                    paint(obj.StrokeGradient, color_sequence, 0)
                 end
 
                 obj.Fill.Visible = values.Box
                 obj.FillGradient.Enabled = values.Box and values.BoxGradient
 
                 if values.BoxGradient then
-                    obj.FillGradient.Color = color_sequence
+                    paint(obj.FillGradient, color_sequence, 90)
                 end
 
                 local health = clamp(info.health, 0, info.max_health)
@@ -4297,7 +4309,7 @@
                     obj.HealthBarGradient.Enabled = values.HealthBarGradient
 
                     if values.HealthBarGradient then
-                        obj.HealthBarGradient.Color = color_sequence
+                        paint(obj.HealthBarGradient, color_sequence, 90)
                         obj.HealthBar.BackgroundColor3 = rgb(255, 255, 255)
                     else
                         obj.HealthBar.BackgroundColor3 = health_color
@@ -4312,7 +4324,7 @@
                     obj.HealthTextGradient.Enabled = values.HealthTextGradient
 
                     if values.HealthTextGradient then
-                        obj.HealthTextGradient.Color = color_sequence
+                        paint(obj.HealthTextGradient, color_sequence, 0)
                         obj.HealthText.TextColor3 = rgb(255, 255, 255)
                     else
                         obj.HealthText.TextColor3 = health_color
@@ -4339,7 +4351,7 @@
                 obj.NameTextGradient.Enabled = values.NameGradient
 
                 if values.NameGradient then
-                    obj.NameTextGradient.Color = color_sequence
+                    paint(obj.NameTextGradient, color_sequence, 0)
                 end
 
                 obj.NameText.TextColor3 = rgb(255, 255, 255)
@@ -4365,7 +4377,7 @@
                     obj.WeaponTextGradient.Enabled = values.WeaponGradient
 
                     if values.WeaponGradient then
-                        obj.WeaponTextGradient.Color = color_sequence
+                        paint(obj.WeaponTextGradient, color_sequence, 0)
                     end
 
                     obj.WeaponText.TextColor3 = rgb(255, 255, 255)
@@ -4381,7 +4393,7 @@
                     obj.DistanceTextGradient.Enabled = values.DistanceGradient
 
                     if values.DistanceGradient then
-                        obj.DistanceTextGradient.Color = color_sequence
+                        paint(obj.DistanceTextGradient, color_sequence, 0)
                         obj.DistanceText.TextColor3 = rgb(255, 255, 255)
                     else
                         obj.DistanceText.TextColor3 = rgb(200, 200, 200)
@@ -4399,7 +4411,7 @@
                     obj.BackpackTextGradient.Enabled = values.BackpackGradient
 
                     if values.BackpackGradient then
-                        obj.BackpackTextGradient.Color = color_sequence
+                        paint(obj.BackpackTextGradient, color_sequence, 0)
                         obj.BackpackText.TextColor3 = rgb(255, 255, 255)
                     else
                         obj.BackpackText.TextColor3 = rgb(180, 180, 180)
@@ -4569,7 +4581,7 @@
                         bone.Gradient.Enabled = values.SkeletonGradient
 
                         if values.SkeletonGradient then
-                            bone.Gradient.Color = color_sequence
+                            paint(bone.Gradient, color_sequence, 0)
                             frame.BackgroundColor3 = rgb(255, 255, 255)
                         else
                             frame.BackgroundColor3 = values.SkeletonColor
@@ -4605,7 +4617,7 @@
                 obj.DotGradient.Enabled = values.DotGradient
 
                 if values.DotGradient then
-                    obj.DotGradient.Color = values.GradientAnimation and cfg.animated_sequence or rgbseq(values.GradientColor1, values.GradientColor2)
+                    paint(obj.DotGradient, values.GradientAnimation and cfg.animated_sequence or rgbseq(values.GradientColor1, values.GradientColor2), 0)
                     dot.BackgroundColor3 = rgb(255, 255, 255)
                 else
                     dot.BackgroundColor3 = values.DotColor
@@ -4709,18 +4721,27 @@
             end
 
             function cfg.build_animated_sequence()
-                local phase = (os.clock() * values.GradientAnimationSpeed * 0.05) % 1
+                local time = os.clock()
+                local speed = values.GradientAnimationSpeed
+                local phase = (time * speed * 0.06) % 1
                 local first = values.GradientColor1
                 local second = values.GradientColor2
                 local keypoints = {}
 
-                for index = 0, 10 do
-                    local position = index / 10
-                    local mix = 0.5 + 0.5 * math.cos((position + phase) * math.pi * 2)
+                for index = 0, 12 do
+                    local position = index / 12
+                    local wave = 0.5 + 0.5 * math.cos((position - phase) * math.pi * 2)
+                    local counter = 0.5 + 0.5 * math.sin((position + phase * 2) * math.pi * 2)
+                    local mix = wave * 0.65 + counter * 0.35
 
                     insert(keypoints, rgbkey(position, first:Lerp(second, mix)))
                 end
 
+                local angle_value = (time * speed * 45) % 360
+                local orbit = math.rad(angle_value)
+
+                cfg.animated_rotation = angle_value
+                cfg.animated_offset = vec2(math.cos(orbit) * 0.25, math.sin(orbit) * 0.25)
                 cfg.animated_sequence = rgbseq(keypoints)
             end
 
