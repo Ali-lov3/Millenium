@@ -5285,6 +5285,12 @@
                 return result
             end
 
+            local function is_glove(name)
+                local lowered = string.lower(name)
+
+                return string.find(lowered, "glove", 1, true) ~= nil or string.find(lowered, "wrap", 1, true) ~= nil
+            end
+
             local function list_knife_names()
                 local names = {}
 
@@ -5301,7 +5307,21 @@
                 local names = {}
 
                 for _, folder in skin_assets:GetChildren() do
-                    if folder:IsA("Folder") and not knife_set[folder.Name] and #get_skin_options(folder.Name, true) > 0 then
+                    if folder:IsA("Folder") and not knife_set[folder.Name] and not is_glove(folder.Name) and #get_skin_options(folder.Name, true) > 0 then
+                        insert(names, folder.Name)
+                    end
+                end
+
+                table.sort(names)
+
+                return names
+            end
+
+            local function list_glove_names()
+                local names = {}
+
+                for _, folder in skin_assets:GetChildren() do
+                    if folder:IsA("Folder") and not knife_set[folder.Name] and is_glove(folder.Name) and #get_skin_options(folder.Name, true) > 0 then
                         insert(names, folder.Name)
                     end
                 end
@@ -5313,6 +5333,7 @@
 
             local knife_names = list_knife_names()
             local weapon_names = list_weapon_names()
+            local glove_names = list_glove_names()
 
             if not state.hooked then
                 state.hooked = pcall(function()
@@ -5555,7 +5576,7 @@
                 end)
             end
 
-            local function build_gallery(page, title, icon, flag_prefix, is_knife, names)
+            local function build_gallery(page, title, icon, flag_prefix, is_knife, names, filter_label)
                 local gallery = {entries = {}; search = ""; filter = "All"; is_knife = is_knife}
 
                 local column = page:column({})
@@ -5572,7 +5593,7 @@
                     insert(filter_items, name)
                 end
 
-                section:dropdown({name = is_knife and "Knife" or "Weapon", flag = flag_prefix .. "_filter", items = filter_items, default = "All", scrolling = true, seperator = true, callback = function(value)
+                section:dropdown({name = filter_label, flag = flag_prefix .. "_filter", items = filter_items, default = "All", scrolling = true, seperator = true, callback = function(value)
                     gallery.filter = type(value) == "string" and value or "All"
                     apply_filters(gallery)
                 end})
@@ -5626,7 +5647,17 @@
 
             function cfg.randomize_all()
                 task.spawn(function()
+                    local equipment_names = {}
+
                     for _, weapon_name in weapon_names do
+                        insert(equipment_names, weapon_name)
+                    end
+
+                    for _, glove_name in glove_names do
+                        insert(equipment_names, glove_name)
+                    end
+
+                    for _, weapon_name in equipment_names do
                         local skin_options = get_skin_options(weapon_name, true)
 
                         if #skin_options > 0 then
@@ -5747,10 +5778,11 @@
                 end)
             end
 
-            local knives_page, weapons_page, settings_page, config_page = self:tab({name = cfg.name, icon = cfg.icon, tabs = {"Knives", "Weapons", "Settings", "Config"}})
+            local knives_page, weapons_page, gloves_page, settings_page, config_page = self:tab({name = cfg.name, icon = cfg.icon, tabs = {"Knives", "Weapons", "Gloves", "Settings", "Config"}})
 
-            cfg.knives = build_gallery(knives_page, "Knife Skins", "swords", "skin_knives", true, knife_names)
-            cfg.weapons = build_gallery(weapons_page, "Weapon Skins", "crosshair", "skin_weapons", false, weapon_names)
+            cfg.knives = build_gallery(knives_page, "Knife Skins", "swords", "skin_knives", true, knife_names, "Knife")
+            cfg.weapons = build_gallery(weapons_page, "Weapon Skins", "crosshair", "skin_weapons", false, weapon_names, "Weapon")
+            cfg.gloves = build_gallery(gloves_page, "Glove Skins", "hand", "skin_gloves", false, glove_names, "Glove")
 
             local settings_column = settings_page:column({})
             local settings_section = settings_column:section({name = "Actions", size = 1, default = true, icon = "settings"})
