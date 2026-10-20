@@ -4243,6 +4243,17 @@
                 });
 
                 obj.WeaponText, obj.WeaponTextGradient = create_text(obj.Box, "WeaponText", Enum.Font.SourceSansBold, 11, dim2(1, 0, 0, 14))
+
+                obj.WeaponImage = library:create( "ImageLabel" , {
+                    Name = "WeaponImage";
+                    Parent = obj.Box;
+                    BackgroundTransparency = 1;
+                    BorderSizePixel = 0;
+                    AnchorPoint = vec2(0.5, 0);
+                    Size = dim2(0, 64, 0, 24);
+                    ScaleType = Enum.ScaleType.Fit;
+                    Visible = false
+                });
                 obj.DistanceText, obj.DistanceTextGradient = create_text(obj.Box, "DistanceText", Enum.Font.SourceSansBold, 11, dim2(1, 0, 0, 14))
                 obj.BackpackText, obj.BackpackTextGradient = create_text(obj.Box, "BackpackText", Enum.Font.SourceSans, 10, dim2(1, 0, 0, 14))
 
@@ -4375,7 +4386,18 @@
 
                 local bottom_offset = 2
 
-                if values.Weapon and info.weapon then
+                if obj.WeaponImage then
+                    obj.WeaponImage.Visible = false
+                end
+
+                if values.Weapon and info.weapon_image and obj.WeaponImage then
+                    obj.WeaponText.Visible = false
+                    obj.WeaponImage.Image = info.weapon_image
+                    obj.WeaponImage.Position = dim2(0.5, 0, 1, bottom_offset)
+                    obj.WeaponImage.ImageColor3 = rgb(255, 255, 255)
+                    obj.WeaponImage.Visible = true
+                    bottom_offset = bottom_offset + 26
+                elseif values.Weapon and info.weapon then
                     obj.WeaponText.Visible = true
                     obj.WeaponText.Text = info.weapon
                     obj.WeaponText.Position = dim2(0, 0, 1, bottom_offset)
@@ -4683,24 +4705,87 @@
                 return nil, nil
             end
 
-            local function read_weapon(character)
-                local tool = character:FindFirstChildOfClass("Tool")
+            -- BloxStrike: Die ausgeruestete Waffe steht als JSON im Spieler-Attribut "CurrentEquipped"
+            -- ({Name, Identifier, Skin}). Das Bild kommt aus der Skins-Bibliothek des Spiels.
+            local skins_library = nil
+            local weapon_image_cache = {}
 
-                if tool then
-                    return tool.Name
+            local function get_skins_library()
+                if skins_library == nil then
+                    local ok, result = pcall(function()
+                        return require(rs.Database.Components.Libraries.Skins)
+                    end)
+
+                    skins_library = ok and result or false
                 end
 
-                local equipped = character:GetAttribute("CurrentEquipped")
+                return skins_library or nil
+            end
+
+            local function to_image(value)
+                if typeof(value) == "number" then
+                    return "rbxassetid://" .. tostring(value)
+                end
+
+                if typeof(value) == "string" and value ~= "" then
+                    if tonumber(value) ~= nil then
+                        return "rbxassetid://" .. value
+                    end
+
+                    return value
+                end
+
+                return nil
+            end
+
+            local function get_weapon_image(weapon_name, skin_name)
+                local library_data = get_skins_library()
+
+                if not library_data or typeof(weapon_name) ~= "string" then
+                    return nil
+                end
+
+                local key = weapon_name .. "|" .. tostring(skin_name or "Stock")
+
+                if weapon_image_cache[key] then
+                    return weapon_image_cache[key]
+                end
+
+                local function lookup(skin)
+                    local ok, data = pcall(library_data.GetSkinInformation, weapon_name, skin)
+
+                    if not ok or typeof(data) ~= "table" then
+                        return nil
+                    end
+
+                    local wear = data.wearImages and data.wearImages[1]
+
+                    return to_image(wear and wear.assetId) or to_image(data.imageAssetId)
+                end
+
+                local image = (typeof(skin_name) == "string" and skin_name ~= "" and lookup(skin_name)) or lookup("Stock")
+
+                if image then
+                    weapon_image_cache[key] = image
+                end
+
+                return image
+            end
+
+            local function read_weapon(player, character)
+                local equipped = player:GetAttribute("CurrentEquipped") or character:GetAttribute("CurrentEquipped")
 
                 if typeof(equipped) == "string" and equipped ~= "" then
                     local ok, decoded = pcall(http_service.JSONDecode, http_service, equipped)
 
                     if ok and typeof(decoded) == "table" and typeof(decoded.Name) == "string" then
-                        return decoded.Name
+                        return decoded.Name, decoded.Skin
                     end
                 end
 
-                return nil
+                local tool = character:FindFirstChildOfClass("Tool")
+
+                return tool and tool.Name or nil, nil
             end
 
             local function update_player(obj)
@@ -4817,7 +4902,13 @@
                 end
 
                 if values.Weapon then
-                    info.weapon = read_weapon(character)
+                    local weapon_name, weapon_skin = read_weapon(player, character)
+
+                    info.weapon = weapon_name
+
+                    if is_bloxstrike and weapon_name then
+                        info.weapon_image = get_weapon_image(weapon_name, weapon_skin)
+                    end
                 end
 
                 if values.Distance then
