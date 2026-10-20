@@ -4719,10 +4719,9 @@
                     return
                 end
 
-                if is_bloxstrike and is_culled(character) then
-                    box.Visible = false
-                    return
-                end
+                -- Fog of War: Gegner ausserhalb der Sicht liegen im Culling-Ordner. Der Server sendet
+                -- dann keine neuen Positionen, daher zeigen wir sie an ihrer letzten bekannten Position.
+                local last_known = is_bloxstrike and is_culled(character)
 
                 local hrp = character:FindFirstChild("HumanoidRootPart")
                 local humanoid = character:FindFirstChildOfClass("Humanoid")
@@ -4787,6 +4786,11 @@
                     user_name = player.Name;
                     backpack = {};
                 }
+
+                if last_known then
+                    info.display_name = player.DisplayName .. " (?)"
+                    info.user_name = player.Name .. " (?)"
+                end
 
                 if values.Weapon then
                     info.weapon = read_weapon(character)
