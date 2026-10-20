@@ -4651,7 +4651,6 @@
                 end
             end
 
-            local culled_folder_name = "_PVS_CulledCharacters"
             local http_service = game:GetService("HttpService")
 
             -- BloxStrike: Gegner sind clientseitige Shells (player.Character). Ausserhalb der Sicht
@@ -4672,22 +4671,6 @@
                 end
 
                 return character
-            end
-
-            local function is_culled(character)
-                local parent = character.Parent
-
-                if not parent or parent.Name == culled_folder_name or character:IsDescendantOf(rs) then
-                    return true
-                end
-
-                for attribute_name, attribute_value in character:GetAttributes() do
-                    if attribute_value == false and string.find(string.lower(attribute_name), "visible", 1, true) then
-                        return true
-                    end
-                end
-
-                return false
             end
 
             local function read_health(character, humanoid)
@@ -4772,13 +4755,23 @@
                 return image
             end
 
+            local equipped_cache = setmetatable({}, {__mode = "k"})
+
             local function read_weapon(player, character)
                 local equipped = player:GetAttribute("CurrentEquipped") or character:GetAttribute("CurrentEquipped")
 
                 if typeof(equipped) == "string" and equipped ~= "" then
+                    local cached = equipped_cache[player]
+
+                    if cached and cached.raw == equipped then
+                        return cached.name, cached.skin
+                    end
+
                     local ok, decoded = pcall(http_service.JSONDecode, http_service, equipped)
 
                     if ok and typeof(decoded) == "table" and typeof(decoded.Name) == "string" then
+                        equipped_cache[player] = {raw = equipped, name = decoded.Name, skin = decoded.Skin}
+
                         return decoded.Name, decoded.Skin
                     end
                 end
@@ -4803,10 +4796,6 @@
                     box.Visible = false
                     return
                 end
-
-                -- Fog of War: Gegner ausserhalb der Sicht liegen im Culling-Ordner. Der Server sendet
-                -- dann keine neuen Positionen, daher zeigen wir sie an ihrer letzten bekannten Position.
-                local last_known = is_bloxstrike and is_culled(character)
 
                 local hrp = character:FindFirstChild("HumanoidRootPart")
                 local humanoid = character:FindFirstChildOfClass("Humanoid")
@@ -4895,11 +4884,6 @@
                     user_name = player.Name;
                     backpack = {};
                 }
-
-                if last_known then
-                    info.display_name = player.DisplayName .. " (?)"
-                    info.user_name = player.Name .. " (?)"
-                end
 
                 if values.Weapon then
                     local weapon_name, weapon_skin = read_weapon(player, character)
@@ -5337,7 +5321,7 @@
             library:connection(players.PlayerAdded, add_player)
             library:connection(players.PlayerRemoving, remove_player)
 
-            run:BindToRenderStep("ESPUpdate", Enum.RenderPriority.Camera.Value + 1, function()
+            run:BindToRenderStep("ESPUpdate", Enum.RenderPriority.Last.Value, function()
                 for _, obj in cfg.objects do
                     update_player(obj)
                 end
