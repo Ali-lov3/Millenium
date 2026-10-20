@@ -4398,8 +4398,8 @@
                 end
 
                 local head = character:FindFirstChild("Head")
-                local top_position = head and head.Position + vec3(0, 0.5, 0) or (hrp.Position + vec3(0, 3, 0))
-                local bottom_position = hrp.Position - vec3(0, 3.5, 0)
+                local top_position = head and head.Position + vec3(0, 0.45, 0) or (hrp.Position + vec3(0, 2.8, 0))
+                local bottom_position = hrp.Position - vec3(0, 3.1, 0)
 
                 local top_screen = current_camera:WorldToViewportPoint(top_position)
                 local bottom_screen = current_camera:WorldToViewportPoint(bottom_position)
@@ -4409,6 +4409,12 @@
 
                 box.Position = dim_offset(hrp_position.X - (width / 2), top_screen.Y)
                 box.Size = dim_offset(width, height)
+
+                local glow_padding = clamp(height * 0.05, 1, 15)
+
+                obj.Glow.Position = dim_offset(-glow_padding, -glow_padding)
+                obj.Glow.Size = dim2(1, glow_padding * 2, 1, glow_padding * 2)
+                obj.Glow.SliceScale = clamp(glow_padding / 15, 0.05, 1)
 
                 local info = {
                     health = humanoid.Health;
