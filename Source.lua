@@ -2536,7 +2536,7 @@
                     cfg.y_size += option_height + 6
                     insert(cfg.option_instances, button)
 
-                    button.MouseButton1Down:Connect(function()
+                    local function choose()
                         if cfg.multi then
                             local selected_index = find(cfg.multi_items, button.Text)
 
@@ -2552,6 +2552,28 @@
                             cfg.open = false
 
                             cfg.set(button.Text)
+                        end
+                    end
+
+                    local press_input, press_position
+
+                    button.InputBegan:Connect(function(input)
+                        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                            press_input = input
+                            press_position = input.Position
+                        end
+                    end)
+
+                    button.InputEnded:Connect(function(input)
+                        if input == press_input and press_position then
+                            local moved = (input.Position - press_position).Magnitude
+
+                            press_input = nil
+                            press_position = nil
+
+                            if moved <= 10 then
+                                choose()
+                            end
                         end
                     end)
                 end
