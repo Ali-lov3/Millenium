@@ -4015,7 +4015,7 @@
                     Skeleton = false;
                     SkeletonGradient = false;
                     SkeletonColor = rgb(255, 255, 255);
-                    SkeletonThickness = 1;
+                    SkeletonThickness = 2;
 
                     GradientColor1 = rgb(255, 255, 255);
                     GradientColor2 = rgb(255, 80, 180);
@@ -4529,7 +4529,7 @@
                         local frame = bone.Frame
 
                         frame.Position = dim_offset((from.X + to.X) / 2, (from.Y + to.Y) / 2)
-                        frame.Size = dim_offset(delta.Magnitude, values.SkeletonThickness)
+                        frame.Size = dim_offset(delta.Magnitude + values.SkeletonThickness + 1, values.SkeletonThickness)
                         frame.Rotation = math.deg(math.atan2(delta.Y, delta.X))
                         frame.Visible = true
 

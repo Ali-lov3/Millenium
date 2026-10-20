@@ -135,7 +135,7 @@ local esp = window:esp_manager({
         Skeleton = {Value = false, Visible = true},
         SkeletonGradient = {Value = false, Visible = true},
         SkeletonColor = {Value = Color3.fromRGB(255, 255, 255), Visible = true},
-        SkeletonThickness = {Value = 1, Visible = true},
+        SkeletonThickness = {Value = 2, Visible = true},
 
         Glow = {Value = false, Visible = true},
         GlowGradient = {Value = false, Visible = true},
