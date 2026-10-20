@@ -4733,30 +4733,14 @@
 
                 local current_health, current_max_health = read_health(character, humanoid)
 
-                if current_health == nil or current_health <= 0 then
+                if current_health ~= nil and current_health <= 0 then
                     box.Visible = false
                     return
                 end
 
-                local hrp_position, on_screen = current_camera:WorldToViewportPoint(hrp.Position)
-
-                if not on_screen then
-                    box.Visible = false
-                    return
+                if current_health == nil then
+                    current_health, current_max_health = 100, 100
                 end
-
-                local head = character:FindFirstChild("Head")
-                local top_position = head and head.Position + vec3(0, 0.45, 0) or (hrp.Position + vec3(0, 2.8, 0))
-                local bottom_position = hrp.Position - vec3(0, 3.1, 0)
-
-                local top_screen = current_camera:WorldToViewportPoint(top_position)
-                local bottom_screen = current_camera:WorldToViewportPoint(bottom_position)
-
-                local height = abs(top_screen.Y - bottom_screen.Y)
-                local width = height * 0.65
-
-                box.Position = dim_offset(hrp_position.X - (width / 2), top_screen.Y)
-                box.Size = dim_offset(width, height)
 
                 local function project_world(position)
                     local point = current_camera:WorldToViewportPoint(position)
@@ -4768,7 +4752,47 @@
                     return vec2(point.X, point.Y)
                 end
 
-                local box_origin = vec2(hrp_position.X - (width / 2), top_screen.Y)
+                -- Box aus den 8 Ecken eines Koerper-Quaders berechnen. Das bleibt auch bei Gegnern
+                -- in naher Entfernung stabil (auch wenn nur ein Teil des Koerpers im Bild ist).
+                local head = character:FindFirstChild("Head")
+                local root_position = hrp.Position
+                local top_y = (head and head.Position.Y + 0.65) or (root_position.Y + 2.8)
+                local bottom_y = root_position.Y - 3.1
+                local half = 1.6
+
+                local min_x, min_y, max_x, max_y = math.huge, math.huge, -math.huge, -math.huge
+                local corners_in_front = 0
+
+                for _, y in {top_y, bottom_y} do
+                    for _, x in {-half, half} do
+                        for _, z in {-half, half} do
+                            local point = project_world(vec3(root_position.X + x, y, root_position.Z + z))
+
+                            if point then
+                                corners_in_front += 1
+                                min_x = math.min(min_x, point.X)
+                                min_y = math.min(min_y, point.Y)
+                                max_x = math.max(max_x, point.X)
+                                max_y = math.max(max_y, point.Y)
+                            end
+                        end
+                    end
+                end
+
+                local viewport = current_camera.ViewportSize
+
+                if corners_in_front == 0 or max_x < 0 or max_y < 0 or min_x > viewport.X or min_y > viewport.Y then
+                    box.Visible = false
+                    return
+                end
+
+                local height = max_y - min_y
+                local width = max(max_x - min_x, height * 0.4)
+
+                box.Position = dim_offset(min_x, min_y)
+                box.Size = dim_offset(width, height)
+
+                local box_origin = vec2(min_x, min_y)
 
                 draw_skeleton(obj, character, project_world, box_origin)
                 draw_dot(obj, character, project_world, box_origin)
