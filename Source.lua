@@ -114,7 +114,7 @@
         Object.ImageRectSize = Size and ToVector2(Size) or Vector2.new(0, 0)
     end
 
-    getgenv().library = {
+    local library = {
         directory = "milenium",
         config_path = "milenium/configs",
         folders = {
@@ -129,6 +129,8 @@
         scale = 1,
         is_mobile = is_mobile,
     }
+
+    getgenv().library = library
 
     local themes = {
         preset = {
@@ -569,7 +571,7 @@
                 connection = nil
             end
 
-            library = nil
+            getgenv().library = nil
         end
 
         function library:window(properties)
@@ -1944,7 +1946,7 @@
             options = options or {}
 
             local cfg = {
-                toggle = self;
+                owner = self;
                 items = {};
             }
 
