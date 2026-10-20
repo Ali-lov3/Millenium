@@ -4525,11 +4525,16 @@
                     model = cfg.build_dummy()
                 end
 
+                cfg.motors = {}
+
                 for _, object in model:GetDescendants() do
-                    if object:IsA("BaseScript") or object:IsA("Sound") or object:IsA("ForceField") then
+                    if object:IsA("BaseScript") or object:IsA("Sound") or object:IsA("ForceField") or object:IsA("Animator") or object:IsA("AnimationController") or object:IsA("Animation") then
                         object:Destroy()
                     elseif object:IsA("BasePart") then
                         object.Anchored = true
+                    elseif object:IsA("Motor6D") then
+                        object.Transform = cfr()
+                        insert(cfg.motors, object)
                     end
                 end
 
@@ -4537,6 +4542,9 @@
 
                 if humanoid then
                     humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+                    pcall(function()
+                        humanoid.EvaluateStateMachine = false
+                    end)
                 end
 
                 local max_health = humanoid and max(humanoid.MaxHealth, 1) or 100
@@ -4769,6 +4777,14 @@
             library:connection(items[ "viewport" ]:GetPropertyChangedSignal("AbsoluteSize"), cfg.layout)
 
             library:connection(run.RenderStepped, function(delta)
+                if cfg.motors then
+                    for _, motor in next, cfg.motors do
+                        if motor.Parent then
+                            motor.Transform = cfr()
+                        end
+                    end
+                end
+
                 if not cfg.rotate or not cfg.model or not items[ "viewport" ]:IsDescendantOf(game) then
                     return
                 end
