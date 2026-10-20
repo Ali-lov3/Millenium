@@ -4032,6 +4032,11 @@
             local items = cfg.items
             local values = cfg.values
 
+            -- Fog of War gibt es nur in BloxStrike (ID 114234929420007) und ist dort immer aktiv
+            local bloxstrike_id = 114234929420007
+            local is_bloxstrike = game.PlaceId == bloxstrike_id or game.GameId == bloxstrike_id
+
+
             local custom_settings = options.settings or options.Settings or options.values or options.Values or {}
 
             local visibility = {}
@@ -4624,10 +4629,84 @@
                 end
             end
 
+            local culled_folder_name = "_PVS_CulledCharacters"
+            local http_service = game:GetService("HttpService")
+
+            -- BloxStrike: Gegner sind clientseitige Shells (player.Character). Ausserhalb der Sicht
+            -- (Fog of War / PVS) werden sie in ReplicatedStorage._PVS_CulledCharacters verschoben
+            -- und ihre Position ist veraltet.
+            local function get_shell(player)
+                local character = player.Character
+
+                if character and character.Parent then
+                    return character
+                end
+
+                local folder = ws:FindFirstChild("Characters")
+                local found = folder and folder:FindFirstChild(player.Name)
+
+                if found and found:IsA("Model") then
+                    return found
+                end
+
+                return character
+            end
+
+            local function is_culled(character)
+                local parent = character.Parent
+
+                if not parent or parent.Name == culled_folder_name or character:IsDescendantOf(rs) then
+                    return true
+                end
+
+                for attribute_name, attribute_value in character:GetAttributes() do
+                    if attribute_value == false and string.find(string.lower(attribute_name), "visible", 1, true) then
+                        return true
+                    end
+                end
+
+                return false
+            end
+
+            local function read_health(character, humanoid)
+                local health = character:GetAttribute("Health")
+                local max_health = character:GetAttribute("MaxHealth")
+
+                if typeof(health) == "number" and typeof(max_health) == "number" and max_health > 0 then
+                    return health, max_health
+                end
+
+                if humanoid then
+                    return humanoid.Health, max(humanoid.MaxHealth, 1)
+                end
+
+                return nil, nil
+            end
+
+            local function read_weapon(character)
+                local tool = character:FindFirstChildOfClass("Tool")
+
+                if tool then
+                    return tool.Name
+                end
+
+                local equipped = character:GetAttribute("CurrentEquipped")
+
+                if typeof(equipped) == "string" and equipped ~= "" then
+                    local ok, decoded = pcall(http_service.JSONDecode, http_service, equipped)
+
+                    if ok and typeof(decoded) == "table" and typeof(decoded.Name) == "string" then
+                        return decoded.Name
+                    end
+                end
+
+                return nil
+            end
+
             local function update_player(obj)
                 local box = obj.Box
                 local player = obj.Player
-                local character = player.Character
+                local character = get_shell(player)
                 local current_camera = ws.CurrentCamera
 
                 if not values.Enabled or not character or not current_camera then
@@ -4635,10 +4714,27 @@
                     return
                 end
 
+                if character:GetAttribute("Dead") == true then
+                    box.Visible = false
+                    return
+                end
+
+                if is_bloxstrike and is_culled(character) then
+                    box.Visible = false
+                    return
+                end
+
                 local hrp = character:FindFirstChild("HumanoidRootPart")
                 local humanoid = character:FindFirstChildOfClass("Humanoid")
 
-                if not hrp or not humanoid or humanoid.Health <= 0 then
+                if not hrp then
+                    box.Visible = false
+                    return
+                end
+
+                local current_health, current_max_health = read_health(character, humanoid)
+
+                if current_health == nil or current_health <= 0 then
                     box.Visible = false
                     return
                 end
@@ -4685,16 +4781,15 @@
                 obj.Glow.SliceScale = clamp(glow_padding / 15, 0.05, 1)
 
                 local info = {
-                    health = humanoid.Health;
-                    max_health = max(humanoid.MaxHealth, 1);
+                    health = current_health;
+                    max_health = current_max_health;
                     display_name = player.DisplayName;
                     user_name = player.Name;
                     backpack = {};
                 }
 
                 if values.Weapon then
-                    local tool = character:FindFirstChildOfClass("Tool")
-                    info.weapon = tool and tool.Name or nil
+                    info.weapon = read_weapon(character)
                 end
 
                 if values.Distance then
