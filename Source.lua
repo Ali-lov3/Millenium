@@ -5169,6 +5169,534 @@
             return cfg
         end
 
+        function library:bloxstrike_skin_manager(options)
+            options = options or {}
+
+            local cfg = {
+                name = options.name or options.Name or "Skins";
+                icon = options.icon or options.Icon or "shirt";
+                timeout = options.timeout or options.Timeout or 5;
+                items = {};
+            }
+
+            local knife_list = options.knives or options.Knives or {
+                "CT Knife",
+                "T Knife",
+                "Karambit",
+                "M9 Bayonet",
+                "Butterfly Knife",
+                "Flip Knife",
+                "Gut Knife",
+                "Skeleton Knife",
+                "Stiletto Knife",
+                "LightSaber",
+            }
+
+            local function load_game()
+                local assets = rs:WaitForChild("Assets", cfg.timeout)
+                local skin_assets = assets and assets:WaitForChild("Skins", cfg.timeout)
+                local weapon_assets = assets and assets:WaitForChild("Weapons", cfg.timeout)
+
+                if not skin_assets or not weapon_assets or not hookfunction then
+                    return nil
+                end
+
+                return {
+                    skins = require(rs.Database.Components.Libraries.Skins);
+                    inventory = require(rs.Controllers.InventoryController);
+                    skin_assets = skin_assets;
+                    weapon_assets = weapon_assets;
+                }
+            end
+
+            local loaded, game_data = pcall(load_game)
+
+            if not loaded or not game_data then
+                local page = self:tab({name = cfg.name, icon = cfg.icon, tabs = {"Skins"}})
+                local column = page:column({})
+                local section = column:section({name = "Skin Manager", size = 1, default = true, icon = "info"})
+
+                section:label({name = "BloxStrike was not detected", info = "The skin manager only works inside BloxStrike."})
+
+                return cfg
+            end
+
+            local skins = game_data.skins
+            local inventory = game_data.inventory
+            local skin_assets = game_data.skin_assets
+            local weapon_assets = game_data.weapon_assets
+
+            local env = getgenv()
+
+            env.BloxStrikeSkinState = env.BloxStrikeSkinState or {overrides = {}, records = {}, knife_choice = nil, hooked = false}
+
+            local state = env.BloxStrikeSkinState
+            local rng = Random.new()
+            local galleries = {}
+
+            local knife_set = {}
+
+            for _, knife_name in knife_list do
+                knife_set[knife_name] = true
+            end
+
+            local function get_image(schema)
+                local success, image = pcall(skins.GetItemIconImage, schema, {Float = 0})
+
+                if not success or image == nil or image == "" then
+                    return ""
+                end
+
+                if typeof(image) == "number" or (typeof(image) == "string" and tonumber(image) ~= nil) then
+                    return "rbxassetid://" .. tostring(image)
+                end
+
+                if typeof(image) ~= "string" then
+                    return ""
+                end
+
+                return image
+            end
+
+            local function get_skin_options(weapon_name, skip_images)
+                local result = {}
+                local all = skins.GetAllSkinsForWeapon(weapon_name)
+
+                if not all then
+                    return result
+                end
+
+                for _, schema in ipairs(all) do
+                    local skin_name = schema.skin
+
+                    if typeof(skin_name) == "string"
+                        and skin_name ~= "Stock"
+                        and schema.isEnabled ~= false
+                        and skins.IsSkinAvailable(weapon_name, skin_name)
+                    then
+                        insert(result, {Name = skin_name, Image = skip_images and "" or get_image(schema)})
+                    end
+                end
+
+                table.sort(result, function(a, b)
+                    return a.Name < b.Name
+                end)
+
+                return result
+            end
+
+            local function list_knife_names()
+                local names = {}
+
+                for _, knife_name in knife_list do
+                    if weapon_assets:FindFirstChild(knife_name) then
+                        insert(names, knife_name)
+                    end
+                end
+
+                return names
+            end
+
+            local function list_weapon_names()
+                local names = {}
+
+                for _, folder in skin_assets:GetChildren() do
+                    if folder:IsA("Folder") and not knife_set[folder.Name] and #get_skin_options(folder.Name, true) > 0 then
+                        insert(names, folder.Name)
+                    end
+                end
+
+                table.sort(names)
+
+                return names
+            end
+
+            local knife_names = list_knife_names()
+            local weapon_names = list_weapon_names()
+
+            if not state.hooked then
+                state.hooked = pcall(function()
+                    local original
+
+                    original = hookfunction(inventory.newInventoryItem, function(data, ...)
+                        if typeof(data) == "table" and data.identifier ~= nil and typeof(data.weapon) == "string" then
+                            state.records[data.identifier] = table.clone(data)
+
+                            local weapon = data.weapon
+                            local patched
+
+                            if state.knife_choice and knife_set[weapon] and state.knife_choice ~= weapon then
+                                weapon = state.knife_choice
+
+                                local skin_options = get_skin_options(weapon, true)
+
+                                patched = table.clone(data)
+                                patched.weapon = weapon
+                                patched.skin = state.overrides[weapon] or (skin_options[1] and skin_options[1].Name) or "Stock"
+                            elseif state.overrides[weapon] then
+                                patched = table.clone(data)
+                                patched.skin = state.overrides[weapon]
+                            end
+
+                            if patched then
+                                return original(patched, ...)
+                            end
+                        end
+
+                        return original(data, ...)
+                    end)
+                end)
+            end
+
+            local function refresh_matching(predicate)
+                for identifier, record in state.records do
+                    if predicate(record.weapon) then
+                        pcall(function()
+                            local item = inventory.peekInventoryItemForMovement(identifier)
+
+                            if not item then
+                                return
+                            end
+
+                            local was_equipped = inventory.peekCurrentEquippedForMovement() == item
+
+                            inventory.removeInventoryItem(identifier)
+
+                            local data = table.clone(record)
+
+                            data.shouldEquip = was_equipped
+
+                            inventory.newInventoryItem(data)
+                        end)
+                    end
+                end
+            end
+
+            local function refresh_weapon(weapon_name)
+                refresh_matching(function(name)
+                    return name == weapon_name
+                end)
+            end
+
+            local function refresh_knives()
+                refresh_matching(function(name)
+                    return knife_set[name] == true
+                end)
+            end
+
+            local function apply_change(weapon_name)
+                if knife_set[weapon_name] then
+                    refresh_knives()
+                else
+                    refresh_weapon(weapon_name)
+                end
+            end
+
+            local function entry_selected(entry)
+                if state.overrides[entry.weapon] ~= entry.skin then
+                    return false
+                end
+
+                if entry.is_knife then
+                    return state.knife_choice == entry.weapon
+                end
+
+                return true
+            end
+
+            local function refresh_selection()
+                for _, gallery in galleries do
+                    for _, entry in gallery.entries do
+                        entry.set_selected(entry_selected(entry))
+                    end
+                end
+            end
+
+            local function entry_matches(gallery, entry)
+                if gallery.filter ~= "All" and gallery.filter ~= entry.weapon then
+                    return false
+                end
+
+                if gallery.search == "" then
+                    return true
+                end
+
+                return string.find(string.lower(entry.skin), gallery.search, 1, true) ~= nil
+                    or string.find(string.lower(entry.weapon), gallery.search, 1, true) ~= nil
+            end
+
+            local function apply_filters(gallery)
+                for _, entry in gallery.entries do
+                    local visible = entry_matches(gallery, entry)
+
+                    if entry.card.Visible ~= visible then
+                        entry.card.Visible = visible
+                    end
+                end
+            end
+
+            local function select_entry(entry)
+                local weapon_name = entry.weapon
+
+                if state.overrides[weapon_name] == entry.skin and (not entry.is_knife or state.knife_choice == weapon_name) then
+                    state.overrides[weapon_name] = nil
+
+                    if entry.is_knife then
+                        state.knife_choice = nil
+                    end
+                else
+                    if entry.is_knife then
+                        for _, knife_name in knife_list do
+                            if knife_name ~= weapon_name then
+                                state.overrides[knife_name] = nil
+                            end
+                        end
+
+                        state.knife_choice = weapon_name
+                    end
+
+                    state.overrides[weapon_name] = entry.skin
+                end
+
+                apply_change(weapon_name)
+                refresh_selection()
+            end
+
+            local function build_card(gallery, entry, order)
+                local card = library:create( "TextButton" , {
+                    Parent = gallery.grid;
+                    Name = "\0";
+                    Text = "";
+                    AutoButtonColor = false;
+                    LayoutOrder = order;
+                    BorderSizePixel = 0;
+                    BackgroundColor3 = rgb(33, 33, 35);
+                    Visible = entry_matches(gallery, entry)
+                });
+
+                library:create( "UICorner" , {
+                    Parent = card;
+                    CornerRadius = dim(0, 5)
+                });
+
+                local accent = library:create( "Frame" , {
+                    Parent = card;
+                    Name = "\0";
+                    BorderSizePixel = 0;
+                    BackgroundTransparency = 1;
+                    Position = dim2(0, 0, 0, 8);
+                    Size = dim2(0, 3, 1, -16);
+                    BackgroundColor3 = themes.preset.accent
+                }); library:apply_theme(accent, "accent", "BackgroundColor3");
+
+                library:create( "UICorner" , {
+                    Parent = accent;
+                    CornerRadius = dim(0, 999)
+                });
+
+                if entry.image ~= "" then
+                    library:create( "ImageLabel" , {
+                        Parent = card;
+                        Name = "\0";
+                        BackgroundTransparency = 1;
+                        BorderSizePixel = 0;
+                        AnchorPoint = vec2(0, 0.5);
+                        Position = dim2(0, 10, 0.5, 0);
+                        Size = dim_offset(80, 46);
+                        ScaleType = Enum.ScaleType.Fit;
+                        Image = entry.image
+                    });
+                end
+
+                local skin_label = library:create( "TextLabel" , {
+                    Parent = card;
+                    Name = "\0";
+                    BackgroundTransparency = 1;
+                    BorderSizePixel = 0;
+                    FontFace = fonts.font;
+                    Text = entry.skin;
+                    TextSize = 14;
+                    TextColor3 = rgb(245, 245, 245);
+                    TextXAlignment = Enum.TextXAlignment.Left;
+                    TextTruncate = Enum.TextTruncate.AtEnd;
+                    Position = dim2(0, 100, 0, 10);
+                    Size = dim2(1, -108, 0, 20)
+                }); library:apply_theme(skin_label, "accent", "TextColor3");
+
+                library:create( "TextLabel" , {
+                    Parent = card;
+                    Name = "\0";
+                    BackgroundTransparency = 1;
+                    BorderSizePixel = 0;
+                    FontFace = fonts.small;
+                    Text = entry.weapon;
+                    TextSize = 13;
+                    TextColor3 = rgb(110, 110, 112);
+                    TextXAlignment = Enum.TextXAlignment.Left;
+                    TextTruncate = Enum.TextTruncate.AtEnd;
+                    Position = dim2(0, 100, 0, 32);
+                    Size = dim2(1, -108, 0, 16)
+                });
+
+                function entry.set_selected(bool)
+                    local transparency = bool and 0 or 1
+
+                    skin_label.TextColor3 = bool and themes.preset.accent or rgb(245, 245, 245)
+
+                    if accent.BackgroundTransparency ~= transparency then
+                        library:tween(accent, {BackgroundTransparency = transparency})
+                    end
+                end
+
+                entry.card = card
+
+                card.MouseButton1Click:Connect(function()
+                    select_entry(entry)
+                end)
+            end
+
+            local function build_gallery(page, title, icon, flag_prefix, is_knife, names)
+                local gallery = {entries = {}; search = ""; filter = "All"; is_knife = is_knife}
+
+                local column = page:column({})
+                local section = column:section({name = title, size = 1, default = true, icon = icon})
+
+                section:textbox({name = "Search", flag = flag_prefix .. "_search", callback = function(text)
+                    gallery.search = string.lower(string.match(text, "^%s*(.-)%s*$") or "")
+                    apply_filters(gallery)
+                end})
+
+                local filter_items = {"All"}
+
+                for _, name in names do
+                    insert(filter_items, name)
+                end
+
+                section:dropdown({name = is_knife and "Knife" or "Weapon", flag = flag_prefix .. "_filter", items = filter_items, default = "All", scrolling = true, seperator = true, callback = function(value)
+                    gallery.filter = type(value) == "string" and value or "All"
+                    apply_filters(gallery)
+                end})
+
+                gallery.grid = library:create( "Frame" , {
+                    Parent = section.items[ "elements" ];
+                    Name = "\0";
+                    BackgroundTransparency = 1;
+                    BorderSizePixel = 0;
+                    LayoutOrder = 100;
+                    Size = dim2(1, 0, 0, 0);
+                    AutomaticSize = Enum.AutomaticSize.Y
+                });
+
+                library:create( "UIGridLayout" , {
+                    Parent = gallery.grid;
+                    CellSize = dim2(0.5, -4, 0, 62);
+                    CellPadding = dim2(0, 8, 0, 8);
+                    SortOrder = Enum.SortOrder.LayoutOrder
+                });
+
+                insert(galleries, gallery)
+
+                task.spawn(function()
+                    local order = 0
+
+                    for _, weapon_name in names do
+                        for _, skin_option in get_skin_options(weapon_name) do
+                            order += 1
+
+                            local entry = {
+                                weapon = weapon_name;
+                                skin = skin_option.Name;
+                                image = skin_option.Image;
+                                is_knife = is_knife;
+                            }
+
+                            build_card(gallery, entry, order)
+                            insert(gallery.entries, entry)
+                            entry.set_selected(entry_selected(entry))
+
+                            if order % 20 == 0 then
+                                task.wait()
+                            end
+                        end
+                    end
+                end)
+
+                return gallery
+            end
+
+            function cfg.randomize_all()
+                task.spawn(function()
+                    for _, weapon_name in weapon_names do
+                        local skin_options = get_skin_options(weapon_name, true)
+
+                        if #skin_options > 0 then
+                            state.overrides[weapon_name] = skin_options[rng:NextInteger(1, #skin_options)].Name
+                            refresh_weapon(weapon_name)
+                            task.wait(0.05)
+                        end
+                    end
+
+                    if #knife_names > 0 then
+                        local knife_name = knife_names[rng:NextInteger(1, #knife_names)]
+                        local skin_options = get_skin_options(knife_name, true)
+
+                        for _, other_name in knife_list do
+                            state.overrides[other_name] = nil
+                        end
+
+                        state.knife_choice = knife_name
+                        state.overrides[knife_name] = #skin_options > 0 and skin_options[rng:NextInteger(1, #skin_options)].Name or nil
+
+                        refresh_knives()
+                    end
+
+                    refresh_selection()
+
+                    notifications:create_notification({name = "Skins", info = "Randomized all skins"})
+                end)
+            end
+
+            function cfg.reset_all()
+                task.spawn(function()
+                    local touched = {}
+
+                    for weapon_name in state.overrides do
+                        if not knife_set[weapon_name] then
+                            insert(touched, weapon_name)
+                        end
+                    end
+
+                    table.clear(state.overrides)
+
+                    state.knife_choice = nil
+
+                    for _, weapon_name in touched do
+                        refresh_weapon(weapon_name)
+                        task.wait(0.05)
+                    end
+
+                    refresh_knives()
+                    refresh_selection()
+
+                    notifications:create_notification({name = "Skins", info = "Reset all skins"})
+                end)
+            end
+
+            local knives_page, weapons_page, settings_page = self:tab({name = cfg.name, icon = cfg.icon, tabs = {"Knives", "Weapons", "Settings"}})
+
+            cfg.knives = build_gallery(knives_page, "Knife Skins", "swords", "skin_knives", true, knife_names)
+            cfg.weapons = build_gallery(weapons_page, "Weapon Skins", "crosshair", "skin_weapons", false, weapon_names)
+
+            local settings_column = settings_page:column({})
+            local settings_section = settings_column:section({name = "Actions", size = 1, default = true, icon = "settings"})
+
+            settings_section:label({name = "How it works", info = "Click a skin to equip it.\nClick it again to go back to your default."})
+            settings_section:button({name = "Randomize All", callback = cfg.randomize_all})
+            settings_section:button({name = "Reset All", callback = cfg.reset_all})
+
+            return cfg
+        end
+
         function library:init_config(window)
             window:seperator({name = "Settings"})
             local main = window:tab({name = "Configs", icon = "settings", tabs = {"Main"}})
