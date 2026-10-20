@@ -5682,7 +5682,72 @@
                 end)
             end
 
-            local knives_page, weapons_page, settings_page = self:tab({name = cfg.name, icon = cfg.icon, tabs = {"Knives", "Weapons", "Settings"}})
+            local skin_config_path = library.config_path .. "/skins"
+            local config_list
+
+            local function update_skin_configs()
+                if not isfolder(skin_config_path) then
+                    makefolder(skin_config_path)
+                end
+
+                local list = {}
+
+                for _, file in listfiles(skin_config_path) do
+                    if string.match(file, "%.json$") then
+                        local name = string.match(file, "([^/\\]+)$") or file
+
+                        insert(list, (string.gsub(name, "%.json$", "")))
+                    end
+                end
+
+                table.sort(list)
+
+                if config_list then
+                    config_list.refresh_options(list)
+                end
+            end
+
+            local function apply_config(data)
+                task.spawn(function()
+                    local touched = {}
+
+                    for weapon_name in state.overrides do
+                        if not knife_set[weapon_name] then
+                            touched[weapon_name] = true
+                        end
+                    end
+
+                    table.clear(state.overrides)
+
+                    state.knife_choice = nil
+
+                    if type(data.overrides) == "table" then
+                        for weapon_name, skin_name in data.overrides do
+                            if type(weapon_name) == "string" and type(skin_name) == "string" then
+                                state.overrides[weapon_name] = skin_name
+
+                                if not knife_set[weapon_name] then
+                                    touched[weapon_name] = true
+                                end
+                            end
+                        end
+                    end
+
+                    if type(data.knife_choice) == "string" and knife_set[data.knife_choice] then
+                        state.knife_choice = data.knife_choice
+                    end
+
+                    for weapon_name in touched do
+                        refresh_weapon(weapon_name)
+                        task.wait(0.05)
+                    end
+
+                    refresh_knives()
+                    refresh_selection()
+                end)
+            end
+
+            local knives_page, weapons_page, settings_page, config_page = self:tab({name = cfg.name, icon = cfg.icon, tabs = {"Knives", "Weapons", "Settings", "Config"}})
 
             cfg.knives = build_gallery(knives_page, "Knife Skins", "swords", "skin_knives", true, knife_names)
             cfg.weapons = build_gallery(weapons_page, "Weapon Skins", "crosshair", "skin_weapons", false, weapon_names)
@@ -5693,6 +5758,66 @@
             settings_section:label({name = "How it works", info = "Click a skin to equip it.\nClick it again to go back to your default."})
             settings_section:button({name = "Randomize All", callback = cfg.randomize_all})
             settings_section:button({name = "Reset All", callback = cfg.reset_all})
+
+
+            local config_left = config_page:column({})
+            local config_list_section = config_left:section({name = "Configs", size = 1, default = true, icon = "folder"})
+
+            config_list = config_list_section:list({options = {}, flag = "skin_config_list"})
+
+            local config_right = config_page:column({})
+            local config_section = config_right:section({name = "Manage", size = 1, default = true, icon = "settings"})
+
+            config_section:textbox({name = "Config name:", flag = "skin_config_name"})
+            config_section:button({name = "Save", callback = function()
+                local typed = flags["skin_config_name"]
+                local name = (type(typed) == "string" and typed ~= "" and typed) or flags["skin_config_list"]
+
+                if type(name) ~= "string" then
+                    return
+                end
+
+                name = string.gsub(name, "[^%w%s_%-]", "")
+
+                if name == "" then
+                    return
+                end
+
+                writefile(skin_config_path .. "/" .. name .. ".json", http_service:JSONEncode({overrides = state.overrides, knife_choice = state.knife_choice}))
+                update_skin_configs()
+                notifications:create_notification({name = "Skin Configs", info = "Saved config:\n" .. name})
+            end})
+            config_section:button({name = "Load", callback = function()
+                local name = flags["skin_config_list"]
+
+                if type(name) ~= "string" or not isfile(skin_config_path .. "/" .. name .. ".json") then
+                    return
+                end
+
+                local decoded, data = pcall(function()
+                    return http_service:JSONDecode(readfile(skin_config_path .. "/" .. name .. ".json"))
+                end)
+
+                if not decoded or type(data) ~= "table" then
+                    return
+                end
+
+                apply_config(data)
+                notifications:create_notification({name = "Skin Configs", info = "Loaded config:\n" .. name})
+            end})
+            config_section:button({name = "Delete", callback = function()
+                local name = flags["skin_config_list"]
+
+                if type(name) ~= "string" or not isfile(skin_config_path .. "/" .. name .. ".json") then
+                    return
+                end
+
+                delfile(skin_config_path .. "/" .. name .. ".json")
+                update_skin_configs()
+                notifications:create_notification({name = "Skin Configs", info = "Deleted config:\n" .. name})
+            end})
+
+            update_skin_configs()
 
             return cfg
         end
