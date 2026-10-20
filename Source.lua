@@ -4378,30 +4378,94 @@
                 obj.Box.Visible = values.Enabled and (values.Box or values.Glow or values.Skeleton or values.HealthBar or values.HealthText or values.Name or values.DisplayName or values.Avatar or values.Weapon or values.Distance or values.Backpack)
             end
 
-            local r15_bones = {
-                {"Head", "UpperTorso"},
-                {"UpperTorso", "LowerTorso"},
-                {"UpperTorso", "LeftUpperArm"},
-                {"LeftUpperArm", "LeftLowerArm"},
-                {"LeftLowerArm", "LeftHand"},
-                {"UpperTorso", "RightUpperArm"},
-                {"RightUpperArm", "RightLowerArm"},
-                {"RightLowerArm", "RightHand"},
-                {"LowerTorso", "LeftUpperLeg"},
-                {"LeftUpperLeg", "LeftLowerLeg"},
-                {"LeftLowerLeg", "LeftFoot"},
-                {"LowerTorso", "RightUpperLeg"},
-                {"RightUpperLeg", "RightLowerLeg"},
-                {"RightLowerLeg", "RightFoot"}
-            }
+            local function part_point(model, part_name, offset)
+                local part = model:FindFirstChild(part_name)
 
-            local r6_bones = {
-                {"Head", "Torso"},
-                {"Torso", "Left Arm"},
-                {"Torso", "Right Arm"},
-                {"Torso", "Left Leg"},
-                {"Torso", "Right Leg"}
-            }
+                if part and part:IsA("BasePart") then
+                    if offset then
+                        return part.CFrame:PointToWorldSpace(offset)
+                    end
+
+                    return part.Position
+                end
+
+                return nil
+            end
+
+            local function joint_point(model, part_name, motor_name)
+                local part = model:FindFirstChild(part_name)
+                local motor = part and part:FindFirstChild(motor_name)
+
+                if motor and motor:IsA("Motor6D") and motor.Part0 then
+                    return motor.Part0.CFrame:PointToWorldSpace(motor.C0.Position)
+                end
+
+                return nil
+            end
+
+            local function get_segments(model)
+                local segments = {}
+
+                local function add(point_a, point_b)
+                    if point_a and point_b then
+                        insert(segments, {point_a, point_b})
+                    end
+                end
+
+                if model:FindFirstChild("UpperTorso") then
+                    local head = part_point(model, "Head")
+                    local neck = joint_point(model, "Head", "Neck")
+                    local waist = joint_point(model, "UpperTorso", "Waist")
+
+                    add(head, neck)
+                    add(neck, waist)
+
+                    for _, side in next, {"Left", "Right"} do
+                        local shoulder = joint_point(model, side .. "UpperArm", side .. "Shoulder")
+                        local elbow = joint_point(model, side .. "LowerArm", side .. "Elbow")
+                        local wrist = joint_point(model, side .. "Hand", side .. "Wrist")
+                        local hand = part_point(model, side .. "Hand")
+
+                        local hip = joint_point(model, side .. "UpperLeg", side .. "Hip")
+                        local knee = joint_point(model, side .. "LowerLeg", side .. "Knee")
+                        local ankle = joint_point(model, side .. "Foot", side .. "Ankle")
+                        local foot = part_point(model, side .. "Foot")
+
+                        add(neck, shoulder)
+                        add(shoulder, elbow)
+                        add(elbow, wrist)
+                        add(wrist, hand)
+
+                        add(waist, hip)
+                        add(hip, knee)
+                        add(knee, ankle)
+                        add(ankle, foot)
+                    end
+                elseif model:FindFirstChild("Torso") then
+                    local head = part_point(model, "Head")
+                    local neck = part_point(model, "Torso", vec3(0, 1, 0))
+                    local waist = part_point(model, "Torso", vec3(0, -1, 0))
+
+                    add(head, neck)
+                    add(neck, waist)
+
+                    for _, side in next, {"Left", "Right"} do
+                        local sign = side == "Left" and -1 or 1
+
+                        local shoulder = part_point(model, "Torso", vec3(sign, 0.5, 0))
+                        local hand = part_point(model, side .. " Arm", vec3(0, -1, 0))
+                        local hip = part_point(model, "Torso", vec3(sign * 0.5, -1, 0))
+                        local foot = part_point(model, side .. " Leg", vec3(0, -1, 0))
+
+                        add(neck, shoulder)
+                        add(shoulder, hand)
+                        add(waist, hip)
+                        add(hip, foot)
+                    end
+                end
+
+                return segments
+            end
 
             local function get_bone(obj, index)
                 local bone = obj.Bones[index]
@@ -4418,6 +4482,11 @@
                     BorderSizePixel = 0;
                     Visible = false;
                     ZIndex = 2
+                });
+
+                library:create( "UICorner" , {
+                    Parent = frame;
+                    CornerRadius = dim(0.5, 0)
                 });
 
                 local gradient = library:create( "UIGradient" , {
@@ -4442,40 +4511,35 @@
                     return
                 end
 
-                local list = model:FindFirstChild("UpperTorso") and r15_bones or r6_bones
+                local segments = get_segments(model)
                 local color_sequence = values.GradientAnimation and cfg.animated_sequence or rgbseq(values.GradientColor1, values.GradientColor2)
                 local used = 0
 
-                for _, pair in next, list do
-                    local part_a = model:FindFirstChild(pair[1])
-                    local part_b = model:FindFirstChild(pair[2])
+                for _, segment in next, segments do
+                    local point_a = project(segment[1])
+                    local point_b = project(segment[2])
 
-                    if part_a and part_b and part_a:IsA("BasePart") and part_b:IsA("BasePart") then
-                        local point_a = project(part_a.Position)
-                        local point_b = project(part_b.Position)
+                    if point_a and point_b then
+                        used += 1
 
-                        if point_a and point_b then
-                            used += 1
+                        local bone = get_bone(obj, used)
+                        local from = point_a - origin
+                        local to = point_b - origin
+                        local delta = to - from
+                        local frame = bone.Frame
 
-                            local bone = get_bone(obj, used)
-                            local from = point_a - origin
-                            local to = point_b - origin
-                            local delta = to - from
-                            local frame = bone.Frame
+                        frame.Position = dim_offset((from.X + to.X) / 2, (from.Y + to.Y) / 2)
+                        frame.Size = dim_offset(delta.Magnitude, values.SkeletonThickness)
+                        frame.Rotation = math.deg(math.atan2(delta.Y, delta.X))
+                        frame.Visible = true
 
-                            frame.Position = dim_offset((from.X + to.X) / 2, (from.Y + to.Y) / 2)
-                            frame.Size = dim_offset(delta.Magnitude, values.SkeletonThickness)
-                            frame.Rotation = math.deg(math.atan2(delta.Y, delta.X))
-                            frame.Visible = true
+                        bone.Gradient.Enabled = values.SkeletonGradient
 
-                            bone.Gradient.Enabled = values.SkeletonGradient
-
-                            if values.SkeletonGradient then
-                                bone.Gradient.Color = color_sequence
-                                frame.BackgroundColor3 = rgb(255, 255, 255)
-                            else
-                                frame.BackgroundColor3 = values.SkeletonColor
-                            end
+                        if values.SkeletonGradient then
+                            bone.Gradient.Color = color_sequence
+                            frame.BackgroundColor3 = rgb(255, 255, 255)
+                        else
+                            frame.BackgroundColor3 = values.SkeletonColor
                         end
                     end
                 end
@@ -4595,18 +4659,33 @@
                     return
                 end
 
+                local size = items[ "viewport" ].AbsoluteSize
+
+                if size.X <= 0 or size.Y <= 0 then
+                    return
+                end
+
                 local scale = library.scale or 1
-                local preview = items[ "preview" ]
-                local origin = (preview.Box.AbsolutePosition - items[ "viewport" ].AbsolutePosition) / scale
+                local width = size.X / scale
+                local height = size.Y / scale
+                local box_height = height * fit
+                local box_width = box_height * 0.65
+                local camera = items[ "camera" ]
+                local tan_half = tan(rad(camera.FieldOfView / 2))
+                local origin = vec2(width / 2 - box_width / 2, height / 2 - box_height / 2)
 
-                draw_skeleton(preview, cfg.model, function(position)
-                    local point = items[ "camera" ]:WorldToViewportPoint(position)
+                draw_skeleton(items[ "preview" ], cfg.model, function(position)
+                    local relative = camera.CFrame:PointToObjectSpace(position)
+                    local depth = -relative.Z
 
-                    if point.Z <= 0 then
+                    if depth <= 0 then
                         return nil
                     end
 
-                    return vec2(point.X, point.Y) / scale
+                    local ndc_x = relative.X / (depth * tan_half * (width / height))
+                    local ndc_y = relative.Y / (depth * tan_half)
+
+                    return vec2((ndc_x * 0.5 + 0.5) * width, (0.5 - ndc_y * 0.5) * height)
                 end, origin)
             end
 
