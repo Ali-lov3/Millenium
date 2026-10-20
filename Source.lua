@@ -4012,6 +4012,11 @@
                     Distance = false;
                     DistanceGradient = false;
 
+                    Skeleton = false;
+                    SkeletonGradient = false;
+                    SkeletonColor = rgb(255, 255, 255);
+                    SkeletonThickness = 1;
+
                     GradientColor1 = rgb(255, 255, 255);
                     GradientColor2 = rgb(255, 80, 180);
                     GradientAnimation = false;
@@ -4104,7 +4109,7 @@
             end
 
             local function create_box(parent, user_id, glow_z)
-                local obj = {}
+                local obj = {Bones = {}}
 
                 obj.Box = library:create( "Frame" , {
                     Parent = parent;
@@ -4370,7 +4375,112 @@
                     obj.BackpackText.Visible = false
                 end
 
-                obj.Box.Visible = values.Enabled and (values.Box or values.Glow or values.HealthBar or values.HealthText or values.Name or values.DisplayName or values.Avatar or values.Weapon or values.Distance or values.Backpack)
+                obj.Box.Visible = values.Enabled and (values.Box or values.Glow or values.Skeleton or values.HealthBar or values.HealthText or values.Name or values.DisplayName or values.Avatar or values.Weapon or values.Distance or values.Backpack)
+            end
+
+            local r15_bones = {
+                {"Head", "UpperTorso"},
+                {"UpperTorso", "LowerTorso"},
+                {"UpperTorso", "LeftUpperArm"},
+                {"LeftUpperArm", "LeftLowerArm"},
+                {"LeftLowerArm", "LeftHand"},
+                {"UpperTorso", "RightUpperArm"},
+                {"RightUpperArm", "RightLowerArm"},
+                {"RightLowerArm", "RightHand"},
+                {"LowerTorso", "LeftUpperLeg"},
+                {"LeftUpperLeg", "LeftLowerLeg"},
+                {"LeftLowerLeg", "LeftFoot"},
+                {"LowerTorso", "RightUpperLeg"},
+                {"RightUpperLeg", "RightLowerLeg"},
+                {"RightLowerLeg", "RightFoot"}
+            }
+
+            local r6_bones = {
+                {"Head", "Torso"},
+                {"Torso", "Left Arm"},
+                {"Torso", "Right Arm"},
+                {"Torso", "Left Leg"},
+                {"Torso", "Right Leg"}
+            }
+
+            local function get_bone(obj, index)
+                local bone = obj.Bones[index]
+
+                if bone then
+                    return bone
+                end
+
+                local frame = library:create( "Frame" , {
+                    Name = "Bone";
+                    Parent = obj.Box;
+                    AnchorPoint = vec2(0.5, 0.5);
+                    BackgroundColor3 = rgb(255, 255, 255);
+                    BorderSizePixel = 0;
+                    Visible = false;
+                    ZIndex = 2
+                });
+
+                local gradient = library:create( "UIGradient" , {
+                    Parent = frame
+                });
+
+                bone = {Frame = frame, Gradient = gradient}
+                obj.Bones[index] = bone
+
+                return bone
+            end
+
+            local function hide_bones(obj, from)
+                for index = from + 1, #obj.Bones do
+                    obj.Bones[index].Frame.Visible = false
+                end
+            end
+
+            local function draw_skeleton(obj, model, project, origin)
+                if not values.Skeleton then
+                    hide_bones(obj, 0)
+                    return
+                end
+
+                local list = model:FindFirstChild("UpperTorso") and r15_bones or r6_bones
+                local color_sequence = values.GradientAnimation and cfg.animated_sequence or rgbseq(values.GradientColor1, values.GradientColor2)
+                local used = 0
+
+                for _, pair in next, list do
+                    local part_a = model:FindFirstChild(pair[1])
+                    local part_b = model:FindFirstChild(pair[2])
+
+                    if part_a and part_b and part_a:IsA("BasePart") and part_b:IsA("BasePart") then
+                        local point_a = project(part_a.Position)
+                        local point_b = project(part_b.Position)
+
+                        if point_a and point_b then
+                            used += 1
+
+                            local bone = get_bone(obj, used)
+                            local from = point_a - origin
+                            local to = point_b - origin
+                            local delta = to - from
+                            local frame = bone.Frame
+
+                            frame.Position = dim_offset((from.X + to.X) / 2, (from.Y + to.Y) / 2)
+                            frame.Size = dim_offset(delta.Magnitude, values.SkeletonThickness)
+                            frame.Rotation = math.deg(math.atan2(delta.Y, delta.X))
+                            frame.Visible = true
+
+                            bone.Gradient.Enabled = values.SkeletonGradient
+
+                            if values.SkeletonGradient then
+                                bone.Gradient.Color = color_sequence
+                                frame.BackgroundColor3 = rgb(255, 255, 255)
+                            else
+                                frame.BackgroundColor3 = values.SkeletonColor
+                            end
+                        end
+                    end
+                end
+
+                hide_bones(obj, used)
             end
 
             local function update_player(obj)
@@ -4411,6 +4521,16 @@
 
                 box.Position = dim_offset(hrp_position.X - (width / 2), top_screen.Y)
                 box.Size = dim_offset(width, height)
+
+                draw_skeleton(obj, character, function(position)
+                    local point = current_camera:WorldToViewportPoint(position)
+
+                    if point.Z <= 0 then
+                        return nil
+                    end
+
+                    return vec2(point.X, point.Y)
+                end, vec2(hrp_position.X - (width / 2), top_screen.Y))
 
                 local glow_padding = clamp(height * 0.05, 1, 15)
 
@@ -4468,6 +4588,26 @@
                 end
 
                 cfg.animated_sequence = rgbseq(keypoints)
+            end
+
+            function cfg.draw_preview_skeleton()
+                if not cfg.ready or not cfg.model then
+                    return
+                end
+
+                local scale = library.scale or 1
+                local preview = items[ "preview" ]
+                local origin = (preview.Box.AbsolutePosition - items[ "viewport" ].AbsolutePosition) / scale
+
+                draw_skeleton(preview, cfg.model, function(position)
+                    local point = items[ "camera" ]:WorldToViewportPoint(position)
+
+                    if point.Z <= 0 then
+                        return nil
+                    end
+
+                    return vec2(point.X, point.Y) / scale
+                end, origin)
             end
 
             function cfg.layout()
@@ -4690,6 +4830,14 @@
 
             element("Box", "Box", "BoxGradient")
 
+            local skeleton = element("Skeleton", "Skeleton", "SkeletonGradient")
+            build(skeleton.items[ "elements" ], "SkeletonColor", function()
+                return skeleton:colorpicker({name = "Skeleton Color", flag = "esp_skeletoncolor", color = values.SkeletonColor, seperator = true, callback = bind("SkeletonColor")})
+            end)
+            build(skeleton.items[ "elements" ], "SkeletonThickness", function()
+                return skeleton:slider({name = "Thickness", flag = "esp_skeletonthickness", min = 1, max = 4, default = values.SkeletonThickness, interval = 1, callback = bind("SkeletonThickness")})
+            end)
+
             local glow = element("Glow", "Glow", "GlowGradient")
             build(glow.items[ "elements" ], "GlowColor", function()
                 return glow:colorpicker({name = "Glow Color", flag = "esp_glowcolor", color = values.GlowColor, seperator = true, callback = bind("GlowColor")})
@@ -4818,12 +4966,16 @@
                     end
                 end
 
-                if not cfg.rotate or not cfg.model or not items[ "viewport" ]:IsDescendantOf(game) then
+                if not cfg.model or not items[ "viewport" ]:IsDescendantOf(game) then
                     return
                 end
 
-                cfg.rotation = (cfg.rotation + cfg.speed * delta) % 360
-                cfg.model:PivotTo(cfr(cfg.base) * angle(0, rad(cfg.rotation), 0))
+                if cfg.rotate then
+                    cfg.rotation = (cfg.rotation + cfg.speed * delta) % 360
+                    cfg.model:PivotTo(cfr(cfg.base) * angle(0, rad(cfg.rotation), 0))
+                end
+
+                cfg.draw_preview_skeleton()
             end)
 
             library:connection(lp.CharacterAdded, function()

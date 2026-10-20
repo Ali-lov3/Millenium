@@ -132,6 +132,11 @@ local esp = window:esp_manager({
         Box = {Value = true, Visible = true},
         BoxGradient = {Value = false, Visible = true},
 
+        Skeleton = {Value = false, Visible = true},
+        SkeletonGradient = {Value = false, Visible = true},
+        SkeletonColor = {Value = Color3.fromRGB(255, 255, 255), Visible = true},
+        SkeletonThickness = {Value = 1, Visible = true},
+
         Glow = {Value = false, Visible = true},
         GlowGradient = {Value = false, Visible = true},
         GlowColor = {Value = Color3.fromRGB(255, 80, 180), Visible = true},
