@@ -4032,7 +4032,6 @@
             local items = cfg.items
             local values = cfg.values
 
-            -- Fog of War gibt es nur in BloxStrike (ID 114234929420007) und ist dort immer aktiv
             local bloxstrike_id = 114234929420007
             local is_bloxstrike = game.PlaceId == bloxstrike_id or game.GameId == bloxstrike_id
 
@@ -4653,9 +4652,6 @@
 
             local http_service = game:GetService("HttpService")
 
-            -- BloxStrike: Gegner sind clientseitige Shells (player.Character). Ausserhalb der Sicht
-            -- (Fog of War / PVS) werden sie in ReplicatedStorage._PVS_CulledCharacters verschoben
-            -- und ihre Position ist veraltet.
             local function get_shell(player)
                 local character = player.Character
 
@@ -4688,8 +4684,6 @@
                 return nil, nil
             end
 
-            -- BloxStrike: Die ausgeruestete Waffe steht als JSON im Spieler-Attribut "CurrentEquipped"
-            -- ({Name, Identifier, Skin}). Das Bild kommt aus der Skins-Bibliothek des Spiels.
             local skins_library = nil
             local weapon_image_cache = {}
 
@@ -4826,8 +4820,6 @@
                     return vec2(point.X, point.Y)
                 end
 
-                -- Box aus den 8 Ecken eines Koerper-Quaders berechnen. Das bleibt auch bei Gegnern
-                -- in naher Entfernung stabil (auch wenn nur ein Teil des Koerpers im Bild ist).
                 local head = character:FindFirstChild("Head")
                 local root_position = hrp.Position
                 local top_y = (head and head.Position.Y + 0.65) or (root_position.Y + 2.8)
@@ -6037,6 +6029,891 @@
             end})
             config_section:button({name = "Delete", callback = function()
                 local name = flags["skin_config_list"]
+
+                if type(name) ~= "string" or not isfile(skin_config_path .. "/" .. name .. ".json") then
+                    return
+                end
+
+                delfile(skin_config_path .. "/" .. name .. ".json")
+                update_skin_configs()
+                notifications:create_notification({name = "Skin Configs", info = "Deleted config:\n" .. name})
+            end})
+
+            update_skin_configs()
+
+            return cfg
+        end
+
+        function library:rivals_skin_changer(options)
+            options = options or {}
+
+            local cfg = {
+                name = options.name or options.Name or "Skins";
+                icon = options.icon or options.Icon or "shirt";
+                timeout = options.timeout or options.Timeout or 10;
+            }
+
+            local function load_game()
+                local modules = rs:WaitForChild("Modules", cfg.timeout)
+                local player_scripts = lp:WaitForChild("PlayerScripts", cfg.timeout)
+                local remotes = rs:WaitForChild("Remotes", cfg.timeout)
+
+                if not modules or not player_scripts or not remotes then
+                    return nil
+                end
+
+                local controllers = player_scripts:WaitForChild("Controllers", cfg.timeout)
+                local assets = player_scripts:WaitForChild("Assets", cfg.timeout)
+                local data_remotes = remotes:WaitForChild("Data", cfg.timeout)
+
+                if not controllers or not assets or not data_remotes then
+                    return nil
+                end
+
+                local view_models = assets:WaitForChild("ViewModels", cfg.timeout)
+                local equip_remote = data_remotes:WaitForChild("EquipCosmetic", cfg.timeout)
+
+                if not view_models or not equip_remote then
+                    return nil
+                end
+
+                return {
+                    cosmetics = require(modules:WaitForChild("CosmeticLibrary", cfg.timeout));
+                    items = require(modules:WaitForChild("ItemLibrary", cfg.timeout));
+                    replicated = require(modules:WaitForChild("ReplicatedClass", cfg.timeout));
+                    data = require(controllers:WaitForChild("PlayerDataController", cfg.timeout));
+                    view_models = view_models;
+                    equip_remote = equip_remote;
+                }
+            end
+
+            local loaded, game_data = pcall(load_game)
+
+            if not loaded or not game_data then
+                local page = self:tab({name = cfg.name, icon = cfg.icon, tabs = {"Skins"}})
+                local column = page:column({})
+                local section = column:section({name = "Skin Changer", size = 1, default = true, icon = "info"})
+
+                section:label({name = "Rivals was not detected", info = "The skin changer only works inside Rivals."})
+
+                return cfg
+            end
+
+            local env = getgenv()
+
+            env.RivalsSkinState = env.RivalsSkinState or {overrides = {}, originals = {}, hooked = false, unlock = true, applying = false}
+
+            local state = env.RivalsSkinState
+
+            state.game = game_data
+            state.view_set = {}
+
+            for _, descendant in game_data.view_models:GetDescendants() do
+                if not state.view_set[descendant.Name] or descendant:IsA("Model") then
+                    state.view_set[descendant.Name] = descendant
+                end
+            end
+
+            local rng = Random.new()
+            local gallery = {entries = {}; search = ""; filter = "All"}
+            local by_weapon = {}
+            local weapon_names = {}
+
+            local function to_image(value)
+                if type(value) == "number" and value > 0 then
+                    return "rbxassetid://" .. tostring(value)
+                end
+
+                if type(value) == "string" and value ~= "" then
+                    if tonumber(value) then
+                        return "rbxassetid://" .. value
+                    end
+
+                    if string.sub(value, 1, 13) == "rbxassetid://" or string.sub(value, 1, 11) == "rbxthumb://" or string.sub(value, 1, 4) == "http" then
+                        return value
+                    end
+                end
+
+                return nil
+            end
+
+            local image_tokens = {"image", "icon", "thumb", "preview", "decal"}
+
+            local function find_image(info)
+                for key, value in pairs(info) do
+                    if type(key) == "string" then
+                        local lowered = string.lower(key)
+
+                        for _, token in image_tokens do
+                            if string.find(lowered, token, 1, true) then
+                                local image = to_image(value)
+
+                                if image then
+                                    return image
+                                end
+                            end
+                        end
+                    end
+                end
+
+                return nil
+            end
+
+            local function collect(strict)
+                table.clear(by_weapon)
+                table.clear(weapon_names)
+
+                local total = 0
+
+                for skin_name, info in pairs(game_data.cosmetics.Cosmetics) do
+                    if type(skin_name) == "string" and type(info) == "table" and info.Type == "Skin" and type(info.ItemName) == "string" then
+                        local usable = not strict or (game_data.items.ViewModels[skin_name] ~= nil and state.view_set[skin_name] ~= nil)
+
+                        if usable then
+                            local list = by_weapon[info.ItemName]
+
+                            if not list then
+                                list = {}
+                                by_weapon[info.ItemName] = list
+                                insert(weapon_names, info.ItemName)
+                            end
+
+                            insert(list, {weapon = info.ItemName; skin = skin_name; image = find_image(info)})
+
+                            total += 1
+                        end
+                    end
+                end
+
+                return total
+            end
+
+            if collect(true) == 0 then
+                collect(false)
+            end
+
+            table.sort(weapon_names)
+
+            for _, weapon_name in weapon_names do
+                table.sort(by_weapon[weapon_name], function(a, b)
+                    return a.skin < b.skin
+                end)
+            end
+
+            local function selected_skin(weapon_name)
+                local entry = state.overrides[weapon_name]
+
+                if entry and entry.Skin and entry.Skin.Name then
+                    return entry.Skin.Name
+                end
+
+                return nil
+            end
+
+            local function replicate()
+                local data = state.game.data.CurrentData
+
+                if not data then
+                    return
+                end
+
+                state.applying = true
+
+                pcall(function()
+                    data:Replicate("WeaponInventory")
+                end)
+
+                state.applying = false
+            end
+
+            local function apply_all()
+                local controller = state.game.data
+
+                if not controller.CurrentData then
+                    return
+                end
+
+                local changed = false
+
+                for weapon_name, types in pairs(state.overrides) do
+                    local weapon_data = controller:GetWeaponData(weapon_name)
+
+                    if weapon_data then
+                        state.originals[weapon_name] = state.originals[weapon_name] or {}
+
+                        for cosmetic_type, value in pairs(types) do
+                            local target = value or nil
+                            local current = weapon_data[cosmetic_type]
+
+                            if state.originals[weapon_name][cosmetic_type] == nil then
+                                state.originals[weapon_name][cosmetic_type] = current or false
+                            end
+
+                            if (current and current.Name) ~= (target and target.Name) then
+                                weapon_data[cosmetic_type] = target
+                                changed = true
+                            end
+                        end
+                    end
+                end
+
+                if changed then
+                    replicate()
+                end
+            end
+
+            local function restore(weapon_name)
+                local controller = state.game.data
+                local originals = state.originals[weapon_name]
+
+                state.originals[weapon_name] = nil
+
+                if not originals or not controller.CurrentData then
+                    return
+                end
+
+                local weapon_data = controller:GetWeaponData(weapon_name)
+
+                if not weapon_data then
+                    return
+                end
+
+                for cosmetic_type, original in pairs(originals) do
+                    if not state.overrides[weapon_name] or state.overrides[weapon_name][cosmetic_type] == nil then
+                        weapon_data[cosmetic_type] = original or nil
+                    end
+                end
+
+                replicate()
+            end
+
+            local function set_skin(weapon_name, skin_name)
+                state.overrides[weapon_name] = state.overrides[weapon_name] or {}
+                state.overrides[weapon_name].Skin = {Name = skin_name}
+            end
+
+            local function clear_skin(weapon_name)
+                local entry = state.overrides[weapon_name]
+
+                if entry then
+                    entry.Skin = nil
+
+                    if next(entry) == nil then
+                        state.overrides[weapon_name] = nil
+                    end
+                end
+
+                restore(weapon_name)
+            end
+
+            local function owns_for(inventory, name, weapon_name)
+                if not inventory then
+                    return false
+                end
+
+                local owned = inventory[name]
+
+                if owned == true then
+                    return true
+                end
+
+                if type(owned) == "table" then
+                    if owned.IsUniversal then
+                        return true
+                    end
+
+                    if weapon_name and owned[weapon_name] then
+                        return true
+                    end
+                end
+
+                return false
+            end
+
+            local refresh_selection
+
+            local function handle_equip(weapon_name, cosmetic_type, name, extra)
+                if type(weapon_name) ~= "string" or type(cosmetic_type) ~= "string" then
+                    return false
+                end
+
+                local inventory = state.game.data:Get("CosmeticInventory")
+
+                if name ~= nil and owns_for(inventory, name, weapon_name) then
+                    if state.overrides[weapon_name] then
+                        state.overrides[weapon_name][cosmetic_type] = nil
+                    end
+
+                    return false
+                end
+
+                if name == nil and not (state.overrides[weapon_name] and state.overrides[weapon_name][cosmetic_type]) then
+                    return false
+                end
+
+                state.overrides[weapon_name] = state.overrides[weapon_name] or {}
+
+                if name then
+                    state.overrides[weapon_name][cosmetic_type] = {
+                        Name = name;
+                        Inverted = type(extra) == "table" and extra.IsInverted or nil;
+                    }
+                else
+                    state.overrides[weapon_name][cosmetic_type] = false
+                end
+
+                task.defer(function()
+                    apply_all()
+
+                    if state.refresh then
+                        state.refresh()
+                    end
+                end)
+
+                return true
+            end
+
+            state.handle_equip = handle_equip
+
+            if not state.hooked then
+                state.hooked = true
+
+                pcall(function()
+                    if setreadonly then
+                        setreadonly(game_data.cosmetics, false)
+                    end
+                end)
+
+                for _, method_name in ipairs({"OwnsCosmetic", "OwnsCosmeticNormally", "OwnsCosmeticUniversally", "OwnsCosmeticForWeapon", "OwnsCosmeticForSomething"}) do
+                    local original = game_data.cosmetics[method_name]
+
+                    game_data.cosmetics[method_name] = function(...)
+                        if state.unlock then
+                            return true
+                        end
+
+                        if original then
+                            return original(...)
+                        end
+
+                        return false
+                    end
+                end
+
+                pcall(function()
+                    if setreadonly then
+                        setreadonly(game_data.replicated, false)
+                    end
+                end)
+
+                local original_get = game_data.replicated.Get
+
+                game_data.replicated.Get = function(self_class, key)
+                    local value = original_get(self_class, key)
+
+                    if key ~= "Name" or type(value) ~= "string" then
+                        return value
+                    end
+
+                    if not rawget(self_class, "ClientItem") or rawget(self_class, "Info") then
+                        return value
+                    end
+
+                    local current = state.game
+                    local info = current.cosmetics.Cosmetics[value]
+                    local base = info and info.Type == "Skin" and info.ItemName or value
+                    local weapon_overrides = state.overrides[base]
+
+                    if not weapon_overrides then
+                        return value
+                    end
+
+                    if weapon_overrides.Skin == false then
+                        return base
+                    end
+
+                    local skin_name = weapon_overrides.Skin and weapon_overrides.Skin.Name
+
+                    if skin_name and current.items.ViewModels[skin_name] and (state.view_set[skin_name] or current.view_models:FindFirstChild(skin_name, true)) then
+                        return skin_name
+                    end
+
+                    return value
+                end
+
+                if hookmetamethod and getnamecallmethod and newcclosure then
+                    local old_namecall
+
+                    old_namecall = hookmetamethod(game, "__namecall", newcclosure(function(self_remote, ...)
+                        if self_remote == state.game.equip_remote and getnamecallmethod() == "FireServer" then
+                            local weapon_name, cosmetic_type, name, extra = ...
+
+                            if state.handle_equip(weapon_name, cosmetic_type, name, extra) then
+                                return
+                            end
+                        end
+
+                        return old_namecall(self_remote, ...)
+                    end))
+                end
+            end
+
+            local function hook_data()
+                library:connection(state.game.data:GetDataChangedSignal("WeaponInventory"), function()
+                    if not state.applying then
+                        apply_all()
+                    end
+                end)
+
+                apply_all()
+            end
+
+            task.spawn(function()
+                state.game.data:WaitUntilLoaded()
+
+                hook_data()
+
+                library:connection(state.game.data.PlayerDataAdded, function()
+                    task.defer(apply_all)
+                end)
+            end)
+
+            local function entry_matches(entry)
+                if gallery.filter ~= "All" and gallery.filter ~= entry.weapon then
+                    return false
+                end
+
+                if gallery.search == "" then
+                    return true
+                end
+
+                return string.find(string.lower(entry.skin), gallery.search, 1, true) ~= nil
+                    or string.find(string.lower(entry.weapon), gallery.search, 1, true) ~= nil
+            end
+
+            local function apply_filters()
+                for _, entry in gallery.entries do
+                    local visible = entry_matches(entry)
+
+                    if entry.card.Visible ~= visible then
+                        entry.card.Visible = visible
+                    end
+                end
+            end
+
+            refresh_selection = function()
+                for _, entry in gallery.entries do
+                    entry.set_selected(selected_skin(entry.weapon) == entry.skin)
+                end
+            end
+
+            state.refresh = refresh_selection
+
+            local function select_entry(entry)
+                if selected_skin(entry.weapon) == entry.skin then
+                    clear_skin(entry.weapon)
+                else
+                    set_skin(entry.weapon, entry.skin)
+                    apply_all()
+                end
+
+                refresh_selection()
+            end
+
+            local function build_preview(parent, skin_name)
+                local source = state.view_set[skin_name]
+
+                if not source then
+                    return
+                end
+
+                local frame = library:create( "ViewportFrame" , {
+                    Parent = parent;
+                    Name = "\0";
+                    BackgroundTransparency = 1;
+                    BorderSizePixel = 0;
+                    AnchorPoint = vec2(0, 0.5);
+                    Position = dim2(0, 10, 0.5, 0);
+                    Size = dim_offset(80, 46);
+                    Ambient = rgb(200, 200, 200);
+                    LightColor = rgb(255, 255, 255)
+                });
+
+                pcall(function()
+                    local model = Instance.new("Model")
+                    local clone = source:Clone()
+
+                    if clone:IsA("Model") then
+                        model = clone
+                    else
+                        for _, child in clone:GetChildren() do
+                            child.Parent = model
+                        end
+                    end
+
+                    for _, descendant in model:GetDescendants() do
+                        if descendant:IsA("BaseScript") then
+                            descendant:Destroy()
+                        end
+                    end
+
+                    model.Parent = frame
+
+                    local center, size = model:GetBoundingBox()
+                    local viewport_camera = Instance.new("Camera")
+
+                    viewport_camera.FieldOfView = 40
+                    viewport_camera.CFrame = CFrame.lookAt(center.Position + vec3(size.Magnitude, size.Y * 0.3, size.Magnitude) * 0.9, center.Position)
+                    viewport_camera.Parent = frame
+
+                    frame.CurrentCamera = viewport_camera
+                end)
+            end
+
+            local function build_card(parent, entry, order)
+                local card = library:create( "TextButton" , {
+                    Parent = parent;
+                    Name = "\0";
+                    Text = "";
+                    AutoButtonColor = false;
+                    LayoutOrder = order;
+                    BorderSizePixel = 0;
+                    BackgroundColor3 = rgb(33, 33, 35);
+                    Visible = entry_matches(entry)
+                });
+
+                library:create( "UICorner" , {
+                    Parent = card;
+                    CornerRadius = dim(0, 5)
+                });
+
+                local accent = library:create( "Frame" , {
+                    Parent = card;
+                    Name = "\0";
+                    BorderSizePixel = 0;
+                    BackgroundTransparency = 1;
+                    Position = dim2(0, 0, 0, 8);
+                    Size = dim2(0, 3, 1, -16);
+                    BackgroundColor3 = themes.preset.accent
+                }); library:apply_theme(accent, "accent", "BackgroundColor3");
+
+                library:create( "UICorner" , {
+                    Parent = accent;
+                    CornerRadius = dim(0, 999)
+                });
+
+                if entry.image then
+                    library:create( "ImageLabel" , {
+                        Parent = card;
+                        Name = "\0";
+                        BackgroundTransparency = 1;
+                        BorderSizePixel = 0;
+                        AnchorPoint = vec2(0, 0.5);
+                        Position = dim2(0, 10, 0.5, 0);
+                        Size = dim_offset(80, 46);
+                        ScaleType = Enum.ScaleType.Fit;
+                        Image = entry.image
+                    });
+                else
+                    build_preview(card, entry.skin)
+                end
+
+                local skin_label = library:create( "TextLabel" , {
+                    Parent = card;
+                    Name = "\0";
+                    BackgroundTransparency = 1;
+                    BorderSizePixel = 0;
+                    FontFace = fonts.font;
+                    Text = entry.skin;
+                    TextSize = 14;
+                    TextColor3 = rgb(245, 245, 245);
+                    TextXAlignment = Enum.TextXAlignment.Left;
+                    TextTruncate = Enum.TextTruncate.AtEnd;
+                    Position = dim2(0, 100, 0, 10);
+                    Size = dim2(1, -108, 0, 20)
+                });
+
+                library:create( "TextLabel" , {
+                    Parent = card;
+                    Name = "\0";
+                    BackgroundTransparency = 1;
+                    BorderSizePixel = 0;
+                    FontFace = fonts.small;
+                    Text = entry.weapon;
+                    TextSize = 13;
+                    TextColor3 = rgb(110, 110, 112);
+                    TextXAlignment = Enum.TextXAlignment.Left;
+                    TextTruncate = Enum.TextTruncate.AtEnd;
+                    Position = dim2(0, 100, 0, 32);
+                    Size = dim2(1, -108, 0, 16)
+                });
+
+                function entry.set_selected(bool)
+                    local transparency = bool and 0 or 1
+
+                    skin_label.TextColor3 = bool and themes.preset.accent or rgb(245, 245, 245)
+
+                    if accent.BackgroundTransparency ~= transparency then
+                        library:tween(accent, {BackgroundTransparency = transparency})
+                    end
+                end
+
+                entry.card = card
+
+                card.MouseButton1Click:Connect(function()
+                    select_entry(entry)
+                end)
+            end
+
+            function cfg.randomize_weapon(weapon_name)
+                local list = by_weapon[weapon_name]
+
+                if not list or #list == 0 then
+                    return
+                end
+
+                set_skin(weapon_name, list[rng:NextInteger(1, #list)].skin)
+            end
+
+            function cfg.randomize_all()
+                for _, weapon_name in weapon_names do
+                    cfg.randomize_weapon(weapon_name)
+                end
+
+                apply_all()
+                refresh_selection()
+
+                notifications:create_notification({name = "Skins", info = "Randomized all skins"})
+            end
+
+            function cfg.randomize_selected()
+                if gallery.filter == "All" then
+                    notifications:create_notification({name = "Skins", info = "Select a weapon first"})
+
+                    return
+                end
+
+                cfg.randomize_weapon(gallery.filter)
+
+                apply_all()
+                refresh_selection()
+
+                notifications:create_notification({name = "Skins", info = "Randomized " .. gallery.filter})
+            end
+
+            function cfg.reset_selected()
+                if gallery.filter == "All" then
+                    notifications:create_notification({name = "Skins", info = "Select a weapon first"})
+
+                    return
+                end
+
+                clear_skin(gallery.filter)
+                refresh_selection()
+
+                notifications:create_notification({name = "Skins", info = "Reset " .. gallery.filter})
+            end
+
+            function cfg.reset_all()
+                local touched = {}
+
+                for weapon_name in pairs(state.overrides) do
+                    insert(touched, weapon_name)
+                end
+
+                for _, weapon_name in touched do
+                    clear_skin(weapon_name)
+                end
+
+                refresh_selection()
+
+                notifications:create_notification({name = "Skins", info = "Reset all skins"})
+            end
+
+            local skin_config_path = library.config_path .. "/rivals_skins"
+            local config_list
+
+            local function update_skin_configs()
+                if not isfolder(skin_config_path) then
+                    makefolder(skin_config_path)
+                end
+
+                local list = {}
+
+                for _, file in listfiles(skin_config_path) do
+                    if string.match(file, "%.json$") then
+                        local name = string.match(file, "([^/\\]+)$") or file
+
+                        insert(list, (string.gsub(name, "%.json$", "")))
+                    end
+                end
+
+                table.sort(list)
+
+                if config_list then
+                    config_list.refresh_options(list)
+                end
+            end
+
+            local function export_selection()
+                local result = {}
+
+                for weapon_name in pairs(state.overrides) do
+                    local skin_name = selected_skin(weapon_name)
+
+                    if skin_name then
+                        result[weapon_name] = skin_name
+                    end
+                end
+
+                return result
+            end
+
+            local function import_selection(data)
+                cfg.reset_all_silent()
+
+                for weapon_name, skin_name in pairs(data) do
+                    if type(weapon_name) == "string" and type(skin_name) == "string" and by_weapon[weapon_name] then
+                        set_skin(weapon_name, skin_name)
+                    end
+                end
+
+                apply_all()
+                refresh_selection()
+            end
+
+            function cfg.reset_all_silent()
+                local touched = {}
+
+                for weapon_name in pairs(state.overrides) do
+                    insert(touched, weapon_name)
+                end
+
+                for _, weapon_name in touched do
+                    clear_skin(weapon_name)
+                end
+            end
+
+            local skins_page, settings_page, config_page = self:tab({name = cfg.name, icon = cfg.icon, tabs = {"Skins", "Settings", "Config"}})
+
+            local skins_column = skins_page:column({})
+            local skins_section = skins_column:section({name = "Rivals Skins", size = 1, default = true, icon = "crosshair"})
+
+            skins_section:textbox({name = "Search", flag = "rivals_skin_search", callback = function(text)
+                gallery.search = string.lower(string.match(text, "^%s*(.-)%s*$") or "")
+                apply_filters()
+            end})
+
+            local filter_items = {"All"}
+
+            for _, weapon_name in weapon_names do
+                insert(filter_items, weapon_name)
+            end
+
+            skins_section:dropdown({name = "Weapon", flag = "rivals_skin_weapon", items = filter_items, default = "All", scrolling = true, seperator = true, callback = function(value)
+                gallery.filter = type(value) == "string" and value or "All"
+                apply_filters()
+            end})
+
+            skins_section:button({name = "Randomize Weapon", callback = cfg.randomize_selected})
+            skins_section:button({name = "Reset Weapon", callback = cfg.reset_selected})
+            skins_section:button({name = "Randomize All", callback = cfg.randomize_all})
+            skins_section:button({name = "Reset All", callback = cfg.reset_all})
+
+            gallery.grid = library:create( "Frame" , {
+                Parent = skins_section.items[ "elements" ];
+                Name = "\0";
+                BackgroundTransparency = 1;
+                BorderSizePixel = 0;
+                LayoutOrder = 100;
+                Size = dim2(1, 0, 0, 0);
+                AutomaticSize = Enum.AutomaticSize.Y
+            });
+
+            library:create( "UIGridLayout" , {
+                Parent = gallery.grid;
+                CellSize = dim2(0.5, -4, 0, 62);
+                CellPadding = dim2(0, 8, 0, 8);
+                SortOrder = Enum.SortOrder.LayoutOrder
+            });
+
+            task.spawn(function()
+                local order = 0
+
+                for _, weapon_name in weapon_names do
+                    for _, skin_entry in by_weapon[weapon_name] do
+                        order += 1
+
+                        local entry = {weapon = skin_entry.weapon; skin = skin_entry.skin; image = skin_entry.image}
+
+                        build_card(gallery.grid, entry, order)
+                        insert(gallery.entries, entry)
+                        entry.set_selected(selected_skin(entry.weapon) == entry.skin)
+
+                        if order % 12 == 0 then
+                            task.wait()
+                        end
+                    end
+                end
+            end)
+
+            local settings_column = settings_page:column({})
+            local settings_section = settings_column:section({name = "Actions", size = 1, default = true, icon = "settings"})
+
+            settings_section:label({name = "How it works", info = "Pick a weapon, click a skin to equip it.\nClick it again to go back to your default."})
+            settings_section:toggle({name = "Unlock All Cosmetics", default = state.unlock, flag = "rivals_skin_unlock", seperator = true, callback = function(bool)
+                state.unlock = bool
+            end})
+            settings_section:button({name = "Randomize All", callback = cfg.randomize_all})
+            settings_section:button({name = "Reset All", callback = cfg.reset_all})
+
+            local config_left = config_page:column({})
+            local config_list_section = config_left:section({name = "Configs", size = 1, default = true, icon = "folder"})
+
+            config_list = config_list_section:list({options = {}, flag = "rivals_skin_config_list"})
+
+            local config_right = config_page:column({})
+            local config_section = config_right:section({name = "Manage", size = 1, default = true, icon = "settings"})
+
+            config_section:textbox({name = "Config name:", flag = "rivals_skin_config_name"})
+            config_section:button({name = "Save", callback = function()
+                local typed = flags["rivals_skin_config_name"]
+                local name = (type(typed) == "string" and typed ~= "" and typed) or flags["rivals_skin_config_list"]
+
+                if type(name) ~= "string" then
+                    return
+                end
+
+                name = string.gsub(name, "[^%w%s_%-]", "")
+
+                if name == "" then
+                    return
+                end
+
+                writefile(skin_config_path .. "/" .. name .. ".json", http_service:JSONEncode(export_selection()))
+                update_skin_configs()
+                notifications:create_notification({name = "Skin Configs", info = "Saved config:\n" .. name})
+            end})
+            config_section:button({name = "Load", callback = function()
+                local name = flags["rivals_skin_config_list"]
+
+                if type(name) ~= "string" or not isfile(skin_config_path .. "/" .. name .. ".json") then
+                    return
+                end
+
+                local decoded, data = pcall(function()
+                    return http_service:JSONDecode(readfile(skin_config_path .. "/" .. name .. ".json"))
+                end)
+
+                if not decoded or type(data) ~= "table" then
+                    return
+                end
+
+                import_selection(data)
+                notifications:create_notification({name = "Skin Configs", info = "Loaded config:\n" .. name})
+            end})
+            config_section:button({name = "Delete", callback = function()
+                local name = flags["rivals_skin_config_list"]
 
                 if type(name) ~= "string" or not isfile(skin_config_path .. "/" .. name .. ".json") then
                     return
