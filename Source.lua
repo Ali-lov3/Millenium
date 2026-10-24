@@ -5359,6 +5359,311 @@
             return cfg
         end
 
+        function library:home_manager(options)
+            options = options or {}
+
+            local teleport_service = game:GetService("TeleportService")
+            local marketplace_service = game:GetService("MarketplaceService")
+
+            local cfg = {
+                name = options.name or options.Name or "Home";
+                icon = options.icon or options.Icon or "house";
+                page = options.page or options.Page or "Main";
+                refresh_rate = options.refresh_rate or options.RefreshRate or 0.5;
+                hopping = false;
+                frames = 0;
+                elapsed = 0;
+                items = {};
+            }
+
+            local items = cfg.items
+
+            local page = self:tab({name = cfg.name, icon = cfg.icon, tabs = {cfg.page}})
+            local left = page:column({})
+            local right = page:column({})
+
+            local profile = left:section({name = "Profile", icon = "user", default = true, size = 0.5})
+            local performance = left:section({name = "Performance", icon = "activity", default = true, size = 0.5})
+            local server = right:section({name = "Server", icon = "server", default = true, size = 1})
+
+            local function row(parent, title, order, title_width)
+                title_width = title_width or 100
+
+                local frame = library:create( "Frame" , {
+                    Parent = parent;
+                    Name = "\0";
+                    BackgroundTransparency = 1;
+                    BorderSizePixel = 0;
+                    BorderColor3 = rgb(0, 0, 0);
+                    LayoutOrder = order or 0;
+                    Size = dim2(1, 0, 0, 20);
+                    BackgroundColor3 = rgb(255, 255, 255)
+                });
+
+                library:create( "UIPadding" , {
+                    Parent = frame;
+                    PaddingLeft = dim(0, 5);
+                    PaddingRight = dim(0, 5)
+                });
+
+                library:create( "TextLabel" , {
+                    Parent = frame;
+                    Name = "\0";
+                    FontFace = fonts.small;
+                    TextColor3 = rgb(130, 130, 130);
+                    BorderColor3 = rgb(0, 0, 0);
+                    Text = title;
+                    TextSize = 16;
+                    BackgroundTransparency = 1;
+                    BorderSizePixel = 0;
+                    Size = dim2(0, title_width, 1, 0);
+                    TextXAlignment = Enum.TextXAlignment.Left;
+                    BackgroundColor3 = rgb(255, 255, 255)
+                });
+
+                return library:create( "TextLabel" , {
+                    Parent = frame;
+                    Name = "\0";
+                    FontFace = fonts.small;
+                    TextColor3 = rgb(245, 245, 245);
+                    BorderColor3 = rgb(0, 0, 0);
+                    Text = "...";
+                    TextSize = 16;
+                    BackgroundTransparency = 1;
+                    BorderSizePixel = 0;
+                    Position = dim2(0, title_width, 0, 0);
+                    Size = dim2(1, -title_width, 1, 0);
+                    TextXAlignment = Enum.TextXAlignment.Right;
+                    TextTruncate = Enum.TextTruncate.AtEnd;
+                    BackgroundColor3 = rgb(255, 255, 255)
+                });
+            end
+
+            items[ "header" ] = library:create( "Frame" , {
+                Parent = profile.items[ "elements" ];
+                Name = "\0";
+                BackgroundTransparency = 1;
+                BorderSizePixel = 0;
+                BorderColor3 = rgb(0, 0, 0);
+                LayoutOrder = 1;
+                Size = dim2(1, 0, 0, 64);
+                BackgroundColor3 = rgb(255, 255, 255)
+            });
+
+            items[ "avatar_holder" ] = library:create( "Frame" , {
+                Parent = items[ "header" ];
+                Name = "\0";
+                BorderSizePixel = 0;
+                BorderColor3 = rgb(0, 0, 0);
+                Size = dim2(0, 64, 0, 64);
+                BackgroundColor3 = rgb(33, 33, 35)
+            });
+
+            library:create( "UICorner" , {
+                Parent = items[ "avatar_holder" ];
+                CornerRadius = dim(0, 8)
+            });
+
+            library:create( "UIStroke" , {
+                Parent = items[ "avatar_holder" ];
+                Color = rgb(44, 44, 46);
+                Thickness = 1;
+                ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+            });
+
+            items[ "avatar" ] = library:create( "ImageLabel" , {
+                Parent = items[ "avatar_holder" ];
+                Name = "\0";
+                BackgroundTransparency = 1;
+                BorderSizePixel = 0;
+                BorderColor3 = rgb(0, 0, 0);
+                Size = dim2(1, 0, 1, 0);
+                ScaleType = Enum.ScaleType.Crop;
+                Image = "";
+                BackgroundColor3 = rgb(255, 255, 255)
+            });
+
+            library:create( "UICorner" , {
+                Parent = items[ "avatar" ];
+                CornerRadius = dim(0, 8)
+            });
+
+            items[ "info" ] = library:create( "Frame" , {
+                Parent = items[ "header" ];
+                Name = "\0";
+                BackgroundTransparency = 1;
+                BorderSizePixel = 0;
+                BorderColor3 = rgb(0, 0, 0);
+                Position = dim2(0, 74, 0, 0);
+                Size = dim2(1, -74, 1, 0);
+                BackgroundColor3 = rgb(255, 255, 255)
+            });
+
+            library:create( "UIListLayout" , {
+                Parent = items[ "info" ];
+                Padding = dim(0, 4);
+                VerticalAlignment = Enum.VerticalAlignment.Center;
+                SortOrder = Enum.SortOrder.LayoutOrder
+            });
+
+            items[ "name_value" ] = row(items[ "info" ], "Name", 1, 96)
+            items[ "display_value" ] = row(items[ "info" ], "Display Name", 2, 96)
+
+            items[ "ping_value" ] = row(performance.items[ "elements" ], "Ping", 1)
+            items[ "fps_value" ] = row(performance.items[ "elements" ], "FPS", 2)
+
+            items[ "game_value" ] = row(server.items[ "elements" ], "Game", 1)
+            items[ "players_value" ] = row(server.items[ "elements" ], "Players", 2)
+
+            items[ "name_value" ].Text = lp.Name
+            items[ "display_value" ].Text = lp.DisplayName
+            items[ "game_value" ].Text = "Loading..."
+
+            task.spawn(function()
+                local success, content = pcall(players.GetUserThumbnailAsync, players, lp.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
+
+                if success and content then
+                    items[ "avatar" ].Image = content
+                end
+            end)
+
+            task.spawn(function()
+                local success, info = pcall(marketplace_service.GetProductInfo, marketplace_service, game.PlaceId)
+
+                if success and type(info) == "table" and info.Name then
+                    items[ "game_value" ].Text = info.Name
+                else
+                    items[ "game_value" ].Text = game.Name
+                end
+            end)
+
+            local function quality_color(value, good, ok_limit)
+                if value <= good then
+                    return rgb(110, 220, 130)
+                elseif value <= ok_limit then
+                    return rgb(235, 200, 90)
+                end
+
+                return rgb(235, 90, 90)
+            end
+
+            function cfg.refresh()
+                local success, value = pcall(function()
+                    return stats.Network.ServerStatsItem[ "Data Ping" ]:GetValue()
+                end)
+
+                local ping = success and value and floor(value + 0.5) or floor(lp:GetNetworkPing() * 2000 + 0.5)
+                local fps = floor(cfg.frames / max(cfg.elapsed, 0.001) + 0.5)
+
+                items[ "ping_value" ].Text = ping .. " ms"
+                items[ "ping_value" ].TextColor3 = quality_color(ping, 80, 150)
+
+                items[ "fps_value" ].Text = tostring(fps)
+                items[ "fps_value" ].TextColor3 = fps >= 60 and rgb(110, 220, 130) or (fps >= 30 and rgb(235, 200, 90) or rgb(235, 90, 90))
+
+                items[ "players_value" ].Text = #players:GetPlayers() .. " / " .. players.MaxPlayers
+            end
+
+            function cfg.rejoin()
+                notifications:create_notification({name = "Server", info = "Rejoining server"})
+
+                if #players:GetPlayers() <= 1 then
+                    teleport_service:Teleport(game.PlaceId, lp)
+                else
+                    teleport_service:TeleportToPlaceInstance(game.PlaceId, game.JobId, lp)
+                end
+            end
+
+            function cfg.server_hop()
+                if cfg.hopping then
+                    return
+                end
+
+                cfg.hopping = true
+
+                notifications:create_notification({name = "Server Hop", info = "Searching for a server"})
+
+                task.spawn(function()
+                    local candidates = {}
+                    local cursor = ""
+
+                    for _ = 1, 5 do
+                        local url = string.format("https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Asc&excludeFullGames=true&limit=100%s", game.PlaceId, cursor ~= "" and ("&cursor=" .. cursor) or "")
+
+                        local success, body = pcall(function()
+                            return game:HttpGet(url)
+                        end)
+
+                        if not success then
+                            break
+                        end
+
+                        local decoded, data = pcall(http_service.JSONDecode, http_service, body)
+
+                        if not decoded or type(data) ~= "table" or type(data.data) ~= "table" then
+                            break
+                        end
+
+                        for _, entry in data.data do
+                            if entry.id ~= game.JobId and entry.playing and entry.maxPlayers and entry.playing < entry.maxPlayers then
+                                insert(candidates, entry)
+                            end
+                        end
+
+                        if #candidates >= 20 or not data.nextPageCursor then
+                            break
+                        end
+
+                        cursor = data.nextPageCursor
+                    end
+
+                    if #candidates == 0 then
+                        notifications:create_notification({name = "Server Hop", info = "No other server found"})
+                        cfg.hopping = false
+
+                        return
+                    end
+
+                    local target = candidates[random(1, #candidates)]
+
+                    notifications:create_notification({name = "Server Hop", info = "Joining server with " .. target.playing .. " players"})
+
+                    local teleported = pcall(teleport_service.TeleportToPlaceInstance, teleport_service, game.PlaceId, target.id, lp)
+
+                    if not teleported then
+                        notifications:create_notification({name = "Server Hop", info = "Teleport failed"})
+                    end
+
+                    task.wait(5)
+
+                    cfg.hopping = false
+                end)
+            end
+
+            server:button({name = "Rejoin Server", callback = function()
+                cfg.rejoin()
+            end})
+
+            server:button({name = "Server Hop", callback = function()
+                cfg.server_hop()
+            end})
+
+            library:connection(run.RenderStepped, function(delta)
+                cfg.frames += 1
+                cfg.elapsed += delta
+
+                if cfg.elapsed >= cfg.refresh_rate then
+                    cfg.refresh()
+                    cfg.frames = 0
+                    cfg.elapsed = 0
+                end
+            end)
+
+            cfg.refresh()
+
+            return cfg
+        end
+
         function library:bloxstrike_skin_manager(options)
             options = options or {}
 
