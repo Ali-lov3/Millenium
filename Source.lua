@@ -5365,14 +5365,32 @@
             local teleport_service = game:GetService("TeleportService")
             local marketplace_service = game:GetService("MarketplaceService")
 
+            local function pick_icon(list)
+                for _, icon_name in list do
+                    if ResolveIcon(icon_name) ~= "rbxassetid://0" then
+                        return icon_name
+                    end
+                end
+
+                return list[#list]
+            end
+
+            local main_icon = options.icon or options.Icon
+
+            if not main_icon or ResolveIcon(main_icon) == "rbxassetid://0" then
+                main_icon = pick_icon({"home", "house", "layout-dashboard", "layout-grid", "star"})
+            end
+
             local cfg = {
                 name = options.name or options.Name or "Home";
-                icon = options.icon or options.Icon or "house";
+                icon = main_icon;
                 page = options.page or options.Page or "Main";
                 refresh_rate = options.refresh_rate or options.RefreshRate or 0.5;
                 hopping = false;
                 frames = 0;
                 elapsed = 0;
+                started = os.clock();
+                shown_players = -1;
                 items = {};
             }
 
@@ -5382,20 +5400,18 @@
             local left = page:column({})
             local right = page:column({})
 
-            local profile = left:section({name = "Profile", icon = "user", default = true, size = 0.5})
-            local performance = left:section({name = "Performance", icon = "activity", default = true, size = 0.5})
-            local server = right:section({name = "Server", icon = "server", default = true, size = 1})
+            local profile = left:section({name = "Profile", icon = "user", default = true, size = 0.58})
+            local performance = left:section({name = "Performance", icon = pick_icon({"activity", "gauge", "zap"}), default = true, size = 0.42})
+            local game_section = right:section({name = "Game", icon = pick_icon({"gamepad-2", "gamepad", "play"}), default = true, size = 0.45})
+            local server = right:section({name = "Server", icon = pick_icon({"server", "hard-drive", "globe"}), default = true, size = 0.55})
 
-            local function row(parent, title, order, title_width)
-                title_width = title_width or 100
-
+            local function row(parent, title)
                 local frame = library:create( "Frame" , {
                     Parent = parent;
                     Name = "\0";
                     BackgroundTransparency = 1;
                     BorderSizePixel = 0;
                     BorderColor3 = rgb(0, 0, 0);
-                    LayoutOrder = order or 0;
                     Size = dim2(1, 0, 0, 20);
                     BackgroundColor3 = rgb(255, 255, 255)
                 });
@@ -5416,7 +5432,7 @@
                     TextSize = 16;
                     BackgroundTransparency = 1;
                     BorderSizePixel = 0;
-                    Size = dim2(0, title_width, 1, 0);
+                    Size = dim2(0, 100, 1, 0);
                     TextXAlignment = Enum.TextXAlignment.Left;
                     BackgroundColor3 = rgb(255, 255, 255)
                 });
@@ -5431,99 +5447,224 @@
                     TextSize = 16;
                     BackgroundTransparency = 1;
                     BorderSizePixel = 0;
-                    Position = dim2(0, title_width, 0, 0);
-                    Size = dim2(1, -title_width, 1, 0);
+                    Position = dim2(0, 100, 0, 0);
+                    Size = dim2(1, -100, 1, 0);
                     TextXAlignment = Enum.TextXAlignment.Right;
                     TextTruncate = Enum.TextTruncate.AtEnd;
                     BackgroundColor3 = rgb(255, 255, 255)
                 });
             end
 
-            items[ "header" ] = library:create( "Frame" , {
-                Parent = profile.items[ "elements" ];
+            local function divider(parent)
+                library:create( "Frame" , {
+                    Parent = parent;
+                    Name = "\0";
+                    BorderColor3 = rgb(0, 0, 0);
+                    Size = dim2(1, 0, 0, 1);
+                    BorderSizePixel = 0;
+                    BackgroundColor3 = rgb(36, 36, 37)
+                });
+            end
+
+            local function card(parent)
+                local header = library:create( "Frame" , {
+                    Parent = parent;
+                    Name = "\0";
+                    BackgroundTransparency = 1;
+                    BorderSizePixel = 0;
+                    BorderColor3 = rgb(0, 0, 0);
+                    Size = dim2(1, 0, 0, 72);
+                    BackgroundColor3 = rgb(255, 255, 255)
+                });
+
+                local holder = library:create( "Frame" , {
+                    Parent = header;
+                    Name = "\0";
+                    BorderSizePixel = 0;
+                    BorderColor3 = rgb(0, 0, 0);
+                    Size = dim2(0, 72, 0, 72);
+                    BackgroundColor3 = rgb(33, 33, 35)
+                });
+
+                library:create( "UICorner" , {
+                    Parent = holder;
+                    CornerRadius = dim(0, 10)
+                });
+
+                library:create( "UIStroke" , {
+                    Parent = holder;
+                    Color = rgb(44, 44, 46);
+                    Thickness = 1;
+                    ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+                });
+
+                local image = library:create( "ImageLabel" , {
+                    Parent = holder;
+                    Name = "\0";
+                    BackgroundTransparency = 1;
+                    BorderSizePixel = 0;
+                    BorderColor3 = rgb(0, 0, 0);
+                    Size = dim2(1, 0, 1, 0);
+                    ScaleType = Enum.ScaleType.Crop;
+                    Image = "";
+                    BackgroundColor3 = rgb(255, 255, 255)
+                });
+
+                library:create( "UICorner" , {
+                    Parent = image;
+                    CornerRadius = dim(0, 10)
+                });
+
+                local info = library:create( "Frame" , {
+                    Parent = header;
+                    Name = "\0";
+                    BackgroundTransparency = 1;
+                    BorderSizePixel = 0;
+                    BorderColor3 = rgb(0, 0, 0);
+                    Position = dim2(0, 84, 0, 0);
+                    Size = dim2(1, -84, 1, 0);
+                    BackgroundColor3 = rgb(255, 255, 255)
+                });
+
+                library:create( "UIListLayout" , {
+                    Parent = info;
+                    Padding = dim(0, 3);
+                    VerticalAlignment = Enum.VerticalAlignment.Center;
+                    SortOrder = Enum.SortOrder.LayoutOrder
+                });
+
+                local title = library:create( "TextLabel" , {
+                    Parent = info;
+                    Name = "\0";
+                    FontFace = fonts.font;
+                    TextColor3 = rgb(245, 245, 245);
+                    BorderColor3 = rgb(0, 0, 0);
+                    Text = "";
+                    TextSize = 20;
+                    TextWrapped = true;
+                    BackgroundTransparency = 1;
+                    BorderSizePixel = 0;
+                    Size = dim2(1, 0, 0, 0);
+                    AutomaticSize = Enum.AutomaticSize.Y;
+                    TextXAlignment = Enum.TextXAlignment.Left;
+                    BackgroundColor3 = rgb(255, 255, 255)
+                });
+
+                local subtitle = library:create( "TextLabel" , {
+                    Parent = info;
+                    Name = "\0";
+                    FontFace = fonts.small;
+                    TextColor3 = rgb(130, 130, 130);
+                    BorderColor3 = rgb(0, 0, 0);
+                    Text = "";
+                    TextSize = 16;
+                    TextWrapped = true;
+                    BackgroundTransparency = 1;
+                    BorderSizePixel = 0;
+                    Size = dim2(1, 0, 0, 0);
+                    AutomaticSize = Enum.AutomaticSize.Y;
+                    TextXAlignment = Enum.TextXAlignment.Left;
+                    BackgroundColor3 = rgb(255, 255, 255)
+                });
+
+                return image, title, subtitle
+            end
+
+            local profile_elements = profile.items[ "elements" ]
+            local performance_elements = performance.items[ "elements" ]
+            local game_elements = game_section.items[ "elements" ]
+            local server_elements = server.items[ "elements" ]
+
+            items[ "avatar" ], items[ "welcome" ], items[ "welcome_sub" ] = card(profile_elements)
+            divider(profile_elements)
+            items[ "name_value" ] = row(profile_elements, "Name")
+            items[ "display_value" ] = row(profile_elements, "Display Name")
+            items[ "id_value" ] = row(profile_elements, "User ID")
+            items[ "age_value" ] = row(profile_elements, "Account Age")
+
+            items[ "ping_value" ] = row(performance_elements, "Ping")
+            items[ "fps_value" ] = row(performance_elements, "FPS")
+            items[ "memory_value" ] = row(performance_elements, "Memory")
+            items[ "session_value" ] = row(performance_elements, "Session")
+
+            items[ "game_icon" ], items[ "game_title" ], items[ "game_sub" ] = card(game_elements)
+            divider(game_elements)
+            items[ "place_value" ] = row(game_elements, "Place ID")
+            items[ "universe_value" ] = row(game_elements, "Game ID")
+
+            items[ "players_value" ] = row(server_elements, "Players")
+
+            local bar_wrapper = library:create( "Frame" , {
+                Parent = server_elements;
                 Name = "\0";
                 BackgroundTransparency = 1;
                 BorderSizePixel = 0;
                 BorderColor3 = rgb(0, 0, 0);
-                LayoutOrder = 1;
-                Size = dim2(1, 0, 0, 64);
+                Size = dim2(1, 0, 0, 6);
                 BackgroundColor3 = rgb(255, 255, 255)
             });
 
-            items[ "avatar_holder" ] = library:create( "Frame" , {
-                Parent = items[ "header" ];
+            library:create( "UIPadding" , {
+                Parent = bar_wrapper;
+                PaddingLeft = dim(0, 5);
+                PaddingRight = dim(0, 5)
+            });
+
+            local bar_back = library:create( "Frame" , {
+                Parent = bar_wrapper;
                 Name = "\0";
                 BorderSizePixel = 0;
                 BorderColor3 = rgb(0, 0, 0);
-                Size = dim2(0, 64, 0, 64);
+                Size = dim2(1, 0, 1, 0);
                 BackgroundColor3 = rgb(33, 33, 35)
             });
 
             library:create( "UICorner" , {
-                Parent = items[ "avatar_holder" ];
-                CornerRadius = dim(0, 8)
+                Parent = bar_back;
+                CornerRadius = dim(0, 999)
             });
 
-            library:create( "UIStroke" , {
-                Parent = items[ "avatar_holder" ];
-                Color = rgb(44, 44, 46);
-                Thickness = 1;
-                ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-            });
-
-            items[ "avatar" ] = library:create( "ImageLabel" , {
-                Parent = items[ "avatar_holder" ];
+            items[ "bar_fill" ] = library:create( "Frame" , {
+                Parent = bar_back;
                 Name = "\0";
-                BackgroundTransparency = 1;
                 BorderSizePixel = 0;
                 BorderColor3 = rgb(0, 0, 0);
-                Size = dim2(1, 0, 1, 0);
-                ScaleType = Enum.ScaleType.Crop;
-                Image = "";
-                BackgroundColor3 = rgb(255, 255, 255)
+                Size = dim2(0, 0, 1, 0);
+                BackgroundColor3 = themes.preset.accent
             });
+
+            library:apply_theme(items[ "bar_fill" ], "accent", "BackgroundColor3")
 
             library:create( "UICorner" , {
-                Parent = items[ "avatar" ];
-                CornerRadius = dim(0, 8)
+                Parent = items[ "bar_fill" ];
+                CornerRadius = dim(0, 999)
             });
 
-            items[ "info" ] = library:create( "Frame" , {
-                Parent = items[ "header" ];
-                Name = "\0";
-                BackgroundTransparency = 1;
-                BorderSizePixel = 0;
-                BorderColor3 = rgb(0, 0, 0);
-                Position = dim2(0, 74, 0, 0);
-                Size = dim2(1, -74, 1, 0);
-                BackgroundColor3 = rgb(255, 255, 255)
-            });
+            items[ "uptime_value" ] = row(server_elements, "Server Age")
 
-            library:create( "UIListLayout" , {
-                Parent = items[ "info" ];
-                Padding = dim(0, 4);
-                VerticalAlignment = Enum.VerticalAlignment.Center;
-                SortOrder = Enum.SortOrder.LayoutOrder
-            });
-
-            items[ "name_value" ] = row(items[ "info" ], "Name", 1, 96)
-            items[ "display_value" ] = row(items[ "info" ], "Display Name", 2, 96)
-
-            items[ "ping_value" ] = row(performance.items[ "elements" ], "Ping", 1)
-            items[ "fps_value" ] = row(performance.items[ "elements" ], "FPS", 2)
-
-            items[ "game_value" ] = row(server.items[ "elements" ], "Game", 1)
-            items[ "players_value" ] = row(server.items[ "elements" ], "Players", 2)
-
+            items[ "welcome" ].Text = lp.DisplayName
+            items[ "welcome_sub" ].Text = "Welcome back"
             items[ "name_value" ].Text = lp.Name
             items[ "display_value" ].Text = lp.DisplayName
-            items[ "game_value" ].Text = "Loading..."
+            items[ "id_value" ].Text = tostring(lp.UserId)
+            items[ "age_value" ].Text = lp.AccountAge .. " days"
+
+            items[ "game_title" ].Text = "Loading..."
+            items[ "game_sub" ].Text = ""
+            items[ "place_value" ].Text = tostring(game.PlaceId)
+            items[ "universe_value" ].Text = tostring(game.GameId)
+
+            if game.GameId ~= 0 then
+                items[ "game_icon" ].Image = "rbxthumb://type=GameIcon&id=" .. game.GameId .. "&w=150&h=150"
+            end
 
             task.spawn(function()
                 local success, content = pcall(players.GetUserThumbnailAsync, players, lp.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
 
                 if success and content then
                     items[ "avatar" ].Image = content
+                else
+                    items[ "avatar" ].Image = "rbxthumb://type=AvatarHeadShot&id=" .. lp.UserId .. "&w=150&h=150"
                 end
             end)
 
@@ -5531,11 +5672,21 @@
                 local success, info = pcall(marketplace_service.GetProductInfo, marketplace_service, game.PlaceId)
 
                 if success and type(info) == "table" and info.Name then
-                    items[ "game_value" ].Text = info.Name
+                    items[ "game_title" ].Text = info.Name
+
+                    if type(info.Creator) == "table" and info.Creator.Name then
+                        items[ "game_sub" ].Text = "by " .. info.Creator.Name
+                    end
                 else
-                    items[ "game_value" ].Text = game.Name
+                    items[ "game_title" ].Text = game.Name
                 end
             end)
+
+            local function format_time(total)
+                total = floor(total)
+
+                return string.format("%02d:%02d:%02d", floor(total / 3600), floor(total % 3600 / 60), total % 60)
+            end
 
             local function quality_color(value, good, ok_limit)
                 if value <= good then
@@ -5554,6 +5705,9 @@
 
                 local ping = success and value and floor(value + 0.5) or floor(lp:GetNetworkPing() * 2000 + 0.5)
                 local fps = floor(cfg.frames / max(cfg.elapsed, 0.001) + 0.5)
+                local memory_ok, memory = pcall(function()
+                    return stats:GetTotalMemoryUsageMb()
+                end)
 
                 items[ "ping_value" ].Text = ping .. " ms"
                 items[ "ping_value" ].TextColor3 = quality_color(ping, 80, 150)
@@ -5561,7 +5715,20 @@
                 items[ "fps_value" ].Text = tostring(fps)
                 items[ "fps_value" ].TextColor3 = fps >= 60 and rgb(110, 220, 130) or (fps >= 30 and rgb(235, 200, 90) or rgb(235, 90, 90))
 
-                items[ "players_value" ].Text = #players:GetPlayers() .. " / " .. players.MaxPlayers
+                items[ "memory_value" ].Text = memory_ok and (floor(memory) .. " MB") or "N/A"
+                items[ "session_value" ].Text = format_time(os.clock() - cfg.started)
+                items[ "uptime_value" ].Text = format_time(ws.DistributedGameTime)
+
+                local count = #players:GetPlayers()
+                local capacity = players.MaxPlayers
+
+                items[ "players_value" ].Text = count .. " / " .. capacity
+
+                if cfg.shown_players ~= count then
+                    cfg.shown_players = count
+
+                    library:tween(items[ "bar_fill" ], {Size = dim2(clamp(count / max(capacity, 1), 0, 1), 0, 1, 0)}, Enum.EasingStyle.Quad, 0.3)
+                end
             end
 
             function cfg.rejoin()
@@ -5640,12 +5807,25 @@
                 end)
             end
 
+            function cfg.copy_job_id()
+                if setclipboard then
+                    setclipboard(game.JobId)
+                    notifications:create_notification({name = "Server", info = "Copied Job ID"})
+                else
+                    notifications:create_notification({name = "Server", info = "Clipboard not supported"})
+                end
+            end
+
             server:button({name = "Rejoin Server", callback = function()
                 cfg.rejoin()
             end})
 
             server:button({name = "Server Hop", callback = function()
                 cfg.server_hop()
+            end})
+
+            server:button({name = "Copy Job ID", callback = function()
+                cfg.copy_job_id()
             end})
 
             library:connection(run.RenderStepped, function(delta)

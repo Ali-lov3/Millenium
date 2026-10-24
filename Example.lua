@@ -3,7 +3,7 @@ local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/Ali-l
 local window = library:window({name = "nebula", suffix = "tech", gameInfo = "Milenium for Counter-Strike: Global Offensive", AccentColor = Color3.fromRGB(155, 150, 219), ConfigFolder = "Test"})
 
 window:seperator({name = "Home"})
-local home = window:home_manager({name = "Home", icon = "house"})
+local home = window:home_manager({name = "Home"})
 
 window:seperator({name = "General"})
 local enemies, teammates, self_section = window:tab({name = "Example", icon = "eye", tabs = {"Enemies", "Teammates", "Self"}})
